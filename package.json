@@ -12,7 +12,9 @@
     "generate:types": "node --import tsx scripts/generate-types.mjs",
     "db:seed": "npx tsx src/seed/seed-users.ts",
     "db:seed:users": "npx tsx src/seed/seed-users.ts",
-    "db:seed:dress-suppliers": "npx tsx src/seed/seed-dress-suppliers.ts"
+    "db:seed:dress-suppliers": "npx tsx src/seed/seed-dress-suppliers.ts",
+    "deploy": "vercel --prod",
+    "deploy:preview": "vercel"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -64,6 +66,7 @@
     "prettier": "^3.4.2",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vercel": "^40.0.0"
   }
 }
