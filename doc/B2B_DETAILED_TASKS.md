@@ -51,9 +51,12 @@
 **B2B Collections (Tasks 141-246)**: 104/106 completed (98%)
 - All collections implemented; Manual CRUD testing pending
 
-**Homepage UI Improvements - Supplier Filtering (Tasks 657-669)**: 9/13 completed (69%)
-- Completed: Remove search, Add supplier dropdown, Implement supplier filtering
-- Pending: Remove "All Suppliers" option, Remove location filter, Remove sort options
+**Homepage UI Improvements - Supplier Filtering (Tasks 657-669)**: 12/13 completed (92%)
+- Completed: Remove search, Add supplier dropdown, Implement supplier filtering, Remove filters
+- Pending: Manual testing
+
+**Product Page - Quantity and Bulk Pricing Selection (Tasks 670-674)**: 0/5 completed (0%)
+- Pending: Quantity selector, Bulk pricing radio buttons, Price calculation, Cart integration, Visual feedback
 
 ## Project Setup & Initialization
 
@@ -3031,6 +3034,23 @@
    - Remove sort parameter from `trpc.vendors.marketplace.list.useQuery` call
    - Keep default sort behavior in backend (newest first)
 
+## Product Page - Quantity and Bulk Pricing Selection
+
+670. Add quantity input/selector to product detail page
+   - **Technical Details**: Add quantity input field to `src/app/(app)/products/[productId]/page.tsx` with increment/decrement buttons, validate against MOQ, and store selected quantity in component state
+
+671. Add bulk pricing selection with radio buttons
+   - **Technical Details**: Add RadioGroup component in product detail page to select between unit price and bulk pricing tiers, display each bulk pricing tier as a radio option with quantity range and price, show selected pricing tier prominently, and update price display based on selection
+
+672. Update price calculation based on selected quantity and pricing tier
+   - **Technical Details**: Calculate total price based on selected quantity and pricing tier, handle quantity ranges for bulk pricing (apply tier if quantity falls within range), show unit price and total price, and update calculations when quantity or pricing tier changes
+
+673. Update "Add to Cart" functionality to include quantity and selected pricing
+   - **Technical Details**: Pass selected quantity and pricing tier to cart store when adding to cart, ensure cart items include quantity and unit price from selected tier, and validate quantity meets MOQ before allowing add to cart
+
+674. Add visual feedback for selected pricing tier and quantity
+   - **Technical Details**: Highlight selected radio button with accent color, show quantity input with validation feedback (red if below MOQ), display calculated total price prominently, and add loading states during price calculations
+
 ## Final Steps
 
 644. Final code review
@@ -3049,7 +3069,7 @@
 
 ---
 
-**Total Tasks: 669**
+**Total Tasks: 674**
 
 This list covers everything from initial project setup to post-launch monitoring. Each task is actionable and can be assigned to developers.
 
