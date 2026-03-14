@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
 import { VendorSection } from '@/components/marketplace/VendorSection';
-import { MarketplaceFilters } from '@/components/marketplace/MarketplaceFilters';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Pagination,
@@ -47,29 +46,7 @@ export default function VendorsPage() {
           </p>
         </div>
 
-        {/* Filters */}
-        <MarketplaceFilters
-          search={search}
-          verified={verified}
-          location={location}
-          sort={sort}
-          onSearchChange={(value) => {
-            setSearch(value);
-            setPage(1); // Reset to first page on search
-          }}
-          onVerifiedChange={(value) => {
-            setVerified(value);
-            setPage(1);
-          }}
-          onLocationChange={(value) => {
-            setLocation(value);
-            setPage(1);
-          }}
-          onSortChange={(value) => {
-            setSort(value);
-            setPage(1);
-          }}
-        />
+        {/* Filters - Removed */}
 
         {/* Loading State */}
         {isLoading && (
