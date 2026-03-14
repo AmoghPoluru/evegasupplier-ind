@@ -1,6 +1,6 @@
 # EvegaSupply - B2B Supplier Marketplace - Detailed Task List
 
-> **Purpose**: Comprehensive task list with 140+ tasks for building EvegaSupply B2B supplier marketplace. Tasks are granular and actionable, starting from project setup.
+> **Purpose**: Comprehensive task list with 666+ tasks for building EvegaSupply B2B supplier marketplace. Tasks are granular and actionable, starting from project setup.
 
 ## Implementation Status Summary
 
@@ -50,6 +50,10 @@
 
 **B2B Collections (Tasks 141-246)**: 104/106 completed (98%)
 - All collections implemented; Manual CRUD testing pending
+
+**Homepage UI Improvements - Supplier Filtering (Tasks 657-669)**: 9/13 completed (69%)
+- Completed: Remove search, Add supplier dropdown, Implement supplier filtering
+- Pending: Remove "All Suppliers" option, Remove location filter, Remove sort options
 
 ## Project Setup & Initialization
 
@@ -2936,6 +2940,97 @@
 642. Add authentication security
 643. Perform security audit
 
+## Homepage UI Improvements - Supplier Filtering
+
+657. Remove search input from MarketplaceFilters component
+   - **Technical Details**: Remove the search input field and related state from `src/components/marketplace/MarketplaceFilters.tsx`
+   - Remove `search` prop and `onSearchChange` handler
+   - Remove search-related state (`searchInput`, `debouncedSearch`)
+   - Remove Search icon and clear button
+   - Keep only verified, location, and sort filters
+
+658. Remove search functionality from homepage
+   - **Technical Details**: Update `src/app/(app)/page.tsx` to remove search state and query parameter
+   - Remove `search` state variable
+   - Remove `search` from `trpc.vendors.marketplace.list.useQuery` parameters
+   - Remove search prop from `MarketplaceFilters` component
+   - Update empty state message to remove search-related text
+
+659. Add supplier dropdown to Navbar component
+   - **Technical Details**: Add a dropdown menu in `src/components/navbar/Navbar.tsx` next to the "Vendors" link
+   - Use `DropdownMenu` component from shadcn/ui
+   - Fetch all approved vendors using `trpc.vendors.list.useQuery()` (or create a new endpoint if needed)
+   - Display vendor names in dropdown items
+   - Add search functionality within dropdown (optional, for many vendors)
+   - Store selected supplier in URL query parameter or state management
+
+660. Implement supplier filtering logic
+   - **Technical Details**: Update homepage to filter vendors/products by selected supplier
+   - Add `supplierId` query parameter handling in `src/app/(app)/page.tsx`
+   - Update `trpc.vendors.marketplace.list.useQuery` to accept `supplierId` filter
+   - Filter vendors to show only the selected supplier when a supplier is selected
+   - Show all suppliers when no supplier is selected (or "All Suppliers" option)
+
+661. Update vendor marketplace list endpoint to support supplier filtering
+   - **Technical Details**: Modify `src/trpc/routers/vendors.ts` marketplace.list procedure
+   - Add optional `supplierId` parameter to input schema
+   - Add `where` condition to filter by supplier ID when provided
+   - Ensure proper type safety and validation
+
+662. Add "All Suppliers" option to supplier dropdown
+   - **Technical Details**: Add a default option in the supplier dropdown to show all suppliers
+   - When "All Suppliers" is selected, clear the supplier filter
+   - Update URL query parameter accordingly
+   - Ensure the homepage shows all vendors when "All Suppliers" is selected
+
+663. Update homepage to show selected supplier's products only
+   - **Technical Details**: When a supplier is selected from navbar dropdown
+   - Filter the vendor list to show only that supplier
+   - Update the VendorSection component to display only that supplier's products
+   - Show appropriate empty state if supplier has no products
+   - Maintain pagination if needed for suppliers with many products
+
+664. Add visual indicator for selected supplier in navbar
+   - **Technical Details**: Show which supplier is currently selected in the dropdown
+   - Highlight the selected supplier in the dropdown menu
+   - Display selected supplier name in the dropdown trigger button
+   - Add clear/remove filter option to reset to "All Suppliers"
+
+665. Handle supplier selection state persistence
+   - **Technical Details**: Persist selected supplier across page navigation
+   - Use URL query parameters (`?supplier=supplier-id`) to maintain state
+   - Update dropdown to read from URL on page load
+   - Ensure supplier filter persists when navigating between pages
+
+666. Test supplier filtering functionality
+   - **Technical Details**: Manual testing of supplier dropdown and filtering
+   - Test selecting different suppliers from dropdown
+   - Verify only selected supplier's products are shown
+   - Test "All Suppliers" option to show all vendors
+   - Test URL parameter persistence
+   - Verify empty states when supplier has no products
+
+667. Remove "All Suppliers" option from supplier dropdown
+   - **Technical Details**: Remove the "All Suppliers" menu item from the supplier dropdown in `src/components/navbar/Navbar.tsx`
+   - Remove the default "All Suppliers" option from dropdown
+   - Update dropdown trigger to show selected supplier name or "Select Supplier" when none selected
+   - Ensure homepage shows all suppliers when no supplier is selected (default behavior)
+
+668. Remove "Filter by location" from MarketplaceFilters
+   - **Technical Details**: Remove location filter from `src/components/marketplace/MarketplaceFilters.tsx`
+   - Remove location input field
+   - Remove `location` prop and `onLocationChange` handler from component interface
+   - Remove location state and query parameter from homepage (`src/app/(app)/page.tsx`)
+   - Remove location parameter from `trpc.vendors.marketplace.list.useQuery` call
+
+669. Remove sort options ("Newest first", etc.) from MarketplaceFilters
+   - **Technical Details**: Remove sort dropdown from `src/components/marketplace/MarketplaceFilters.tsx`
+   - Remove sort Select component
+   - Remove `sort` prop and `onSortChange` handler from component interface
+   - Remove sort state from homepage (`src/app/(app)/page.tsx`)
+   - Remove sort parameter from `trpc.vendors.marketplace.list.useQuery` call
+   - Keep default sort behavior in backend (newest first)
+
 ## Final Steps
 
 644. Final code review
@@ -2954,6 +3049,8 @@
 
 ---
 
-**Total Tasks: 656**
+**Total Tasks: 669**
+
+This list covers everything from initial project setup to post-launch monitoring. Each task is actionable and can be assigned to developers.
 
 This list covers everything from initial project setup to post-launch monitoring. Each task is actionable and can be assigned to developers.

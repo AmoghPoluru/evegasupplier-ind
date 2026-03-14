@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { trpc } from '@/trpc/client';
 import { VendorSection } from '@/components/marketplace/VendorSection';
-import { MarketplaceFilters } from '@/components/marketplace/MarketplaceFilters';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Pagination,
@@ -16,22 +16,24 @@ import {
 } from '@/components/ui/pagination';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
-export default function Home() {
+function HomeContent() {
+  const searchParams = useSearchParams();
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [verified, setVerified] = useState<boolean | undefined>(undefined);
-  const [location, setLocation] = useState('');
-  const [sort, setSort] = useState<'newest' | 'verified' | 'name'>('newest');
   const limit = 10;
+
+  // Get supplierId from URL query parameter
+  const supplierId = searchParams.get('supplier') || undefined;
+
+  // Reset page when supplier changes
+  useEffect(() => {
+    setPage(1);
+  }, [supplierId]);
 
   const { data, isLoading, error } = trpc.vendors.marketplace.list.useQuery({
     limit,
     page,
     includeProducts: true,
-    search: search || undefined,
-    verified,
-    location: location || undefined,
-    sort,
+    supplierId: supplierId || undefined,
   });
 
   return (
@@ -47,29 +49,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Filters */}
-        <MarketplaceFilters
-          search={search}
-          verified={verified}
-          location={location}
-          sort={sort}
-          onSearchChange={(value) => {
-            setSearch(value);
-            setPage(1);
-          }}
-          onVerifiedChange={(value) => {
-            setVerified(value);
-            setPage(1);
-          }}
-          onLocationChange={(value) => {
-            setLocation(value);
-            setPage(1);
-          }}
-          onSortChange={(value) => {
-            setSort(value);
-            setPage(1);
-          }}
-        />
+        {/* Filters - Removed */}
 
         {/* Loading State */}
         {isLoading && (
@@ -112,8 +92,8 @@ export default function Home() {
                   No suppliers found
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {search || location || verified !== undefined
-                    ? 'Try adjusting your filters to see more results.'
+                  {supplierId
+                    ? 'Try selecting a different supplier to see more results.'
                     : 'Check back later or create a supplier account to get started.'}
                 </p>
               </div>
@@ -186,5 +166,22 @@ export default function Home() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background">
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-muted-foreground">Loading...</span>
+          </div>
+        </main>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

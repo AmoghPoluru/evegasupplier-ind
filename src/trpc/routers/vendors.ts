@@ -87,10 +87,16 @@ export const vendorsRouter = createTRPCRouter({
           location: z.string().optional(),
           category: z.string().optional(),
           sort: z.enum(['newest', 'verified', 'name']).optional().default('newest'),
+          supplierId: z.string().optional(),
         }),
       )
       .query(async ({ ctx, input }) => {
         const where: Record<string, unknown> = {};
+        
+        // Supplier filter (filter by specific supplier ID)
+        if (input.supplierId) {
+          where.id = { equals: input.supplierId };
+        }
         
         // Verified filter
         if (input.verified !== undefined) {
