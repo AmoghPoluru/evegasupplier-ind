@@ -2,7 +2,7 @@
 
 import { trpc } from '@/trpc/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, DollarSign, ShoppingCart, Package, FileText, MessageSquare } from 'lucide-react';
+import { Loader2, DollarSign, ShoppingCart, Package, FileText, MessageSquare, Users } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface StatsCardsProps {
@@ -10,25 +10,30 @@ interface StatsCardsProps {
 }
 
 export function StatsCards({ vendorId }: StatsCardsProps) {
-  // For now, we'll create placeholder stats
-  // Later, we can create a tRPC endpoint for dashboard stats
   const { data: products, isLoading: productsLoading } = trpc.products.getByVendor.useQuery(
     { vendorId, limit: 1 },
     { enabled: !!vendorId }
   );
 
+  const { data: orderStats, isLoading: orderStatsLoading } = trpc.vendors.orders.stats.useQuery();
+  const { data: buyerStats, isLoading: buyerStatsLoading } = trpc.vendors.buyers.stats.useQuery();
+
   const stats = [
     {
       title: 'Total Revenue',
-      value: '$0.00',
+      value: orderStats?.totalRevenue
+        ? `$${orderStats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : '$0.00',
       icon: DollarSign,
       description: 'All time revenue',
+      isLoading: orderStatsLoading,
     },
     {
       title: 'Total Orders',
-      value: '0',
+      value: orderStats?.totalOrders?.toString() || '0',
       icon: ShoppingCart,
       description: 'Total orders received',
+      isLoading: orderStatsLoading,
     },
     {
       title: 'Active Products',
@@ -38,16 +43,11 @@ export function StatsCards({ vendorId }: StatsCardsProps) {
       isLoading: productsLoading,
     },
     {
-      title: 'Pending RFQs',
-      value: '0',
-      icon: FileText,
-      description: 'RFQs awaiting response',
-    },
-    {
-      title: 'Unread Inquiries',
-      value: '0',
-      icon: MessageSquare,
-      description: 'Inquiries to respond to',
+      title: 'Total Buyers',
+      value: buyerStats?.totalBuyers?.toString() || '0',
+      icon: Users,
+      description: 'Buyers who ordered',
+      isLoading: buyerStatsLoading,
     },
   ];
 

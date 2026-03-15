@@ -1,6 +1,8 @@
 import { requireBuyer } from '@/lib/middleware/buyer-auth';
 import { StatsCards } from './components/StatsCards';
+import { RecentOrdersWidget } from './components/RecentOrdersWidget';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from 'next/link';
 
 export default async function BuyerDashboardPage() {
   const buyer = await requireBuyer();
@@ -17,15 +19,7 @@ export default async function BuyerDashboardPage() {
       <StatsCards buyerId={buyer.id} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Your latest activities and updates</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-500">No recent activity</p>
-          </CardContent>
-        </Card>
+        <RecentOrdersWidget />
 
         <Card>
           <CardHeader>
@@ -34,30 +28,30 @@ export default async function BuyerDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <a
+              <Link
+                href="/buyer/orders"
+                className="block text-sm text-blue-600 hover:underline"
+              >
+                View All Orders
+              </Link>
+              <Link
+                href="/products"
+                className="block text-sm text-blue-600 hover:underline"
+              >
+                Browse Products
+              </Link>
+              <Link
                 href="/buyer/rfqs/new"
                 className="block text-sm text-blue-600 hover:underline"
               >
                 Create RFQ
-              </a>
-              <a
-                href="/buyer/products"
-                className="block text-sm text-blue-600 hover:underline"
-              >
-                Browse Products
-              </a>
-              <a
-                href="/buyer/orders"
-                className="block text-sm text-blue-600 hover:underline"
-              >
-                View Orders
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/buyer/inquiries/new"
                 className="block text-sm text-blue-600 hover:underline"
               >
                 Send Inquiry
-              </a>
+              </Link>
             </div>
           </CardContent>
         </Card>

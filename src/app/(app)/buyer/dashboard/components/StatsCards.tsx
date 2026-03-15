@@ -2,7 +2,7 @@
 
 import { trpc } from '@/trpc/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, FileCheck, ShoppingCart, MessageSquare } from 'lucide-react';
+import { FileText, FileCheck, ShoppingCart, MessageSquare, DollarSign } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface StatsCardsProps {
@@ -12,10 +12,26 @@ interface StatsCardsProps {
 export function StatsCards({ buyerId }: StatsCardsProps) {
   const { data: rfqCount, isLoading: rfqLoading } = trpc.buyers.rfqs.count.useQuery();
   const { data: quoteCount, isLoading: quoteLoading } = trpc.buyers.quotes.count.useQuery();
-  const { data: orderCount, isLoading: orderLoading } = trpc.buyers.orders.count.useQuery();
+  const { data: orderStats, isLoading: orderStatsLoading } = trpc.buyers.orders.stats.useQuery();
   const { data: inquiryCount, isLoading: inquiryLoading } = trpc.buyers.inquiries.count.useQuery();
 
   const stats = [
+    {
+      title: 'Total Orders',
+      value: orderStats?.totalOrders || 0,
+      description: 'All your orders',
+      icon: ShoppingCart,
+      isLoading: orderStatsLoading,
+    },
+    {
+      title: 'Total Spent',
+      value: orderStats?.totalSpent
+        ? `$${orderStats.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : '$0.00',
+      description: 'All time spending',
+      icon: DollarSign,
+      isLoading: orderStatsLoading,
+    },
     {
       title: 'Active RFQs',
       value: rfqCount?.count || 0,
@@ -29,20 +45,6 @@ export function StatsCards({ buyerId }: StatsCardsProps) {
       description: 'Quotes awaiting your review',
       icon: FileCheck,
       isLoading: quoteLoading,
-    },
-    {
-      title: 'Total Orders',
-      value: orderCount?.count || 0,
-      description: 'All your orders',
-      icon: ShoppingCart,
-      isLoading: orderLoading,
-    },
-    {
-      title: 'Unread Inquiries',
-      value: inquiryCount?.count || 0,
-      description: 'Inquiries needing attention',
-      icon: MessageSquare,
-      isLoading: inquiryLoading,
     },
   ];
 

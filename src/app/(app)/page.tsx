@@ -15,6 +15,7 @@ import {
   PaginationEllipsis,
 } from '@/components/ui/pagination';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { AdminDebugBanner } from '@/components/AdminDebugBanner';
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -39,6 +40,9 @@ function HomeContent() {
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-8">
+        {/* Admin Debug Banner */}
+        <AdminDebugBanner />
+        
         {/* Page Header */}
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent mb-2">

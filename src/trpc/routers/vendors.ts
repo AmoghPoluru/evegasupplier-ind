@@ -30,12 +30,21 @@ export const vendorsRouter = createTRPCRouter({
         limit: z.number().min(1).max(100).optional().default(20),
         page: z.number().min(1).optional().default(1),
         verified: z.boolean().optional(),
+        includeUnpublished: z.boolean().optional().default(false), // Admin override
       }),
     )
     .query(async ({ ctx, input }) => {
       const where: Record<string, unknown> = {};
+      
+      // Filter by verified status if provided
       if (input.verified !== undefined) {
         where.verifiedSupplier = { equals: input.verified };
+      }
+
+      // Filter only published suppliers (approved and active) unless admin override
+      if (!input.includeUnpublished) {
+        where.status = { equals: 'approved' };
+        where.isActive = { equals: true };
       }
 
       const result = await ctx.payload.find({
@@ -92,6 +101,10 @@ export const vendorsRouter = createTRPCRouter({
       )
       .query(async ({ ctx, input }) => {
         const where: Record<string, unknown> = {};
+        
+        // Filter only published suppliers (approved and active)
+        where.status = { equals: 'approved' };
+        where.isActive = { equals: true };
         
         // Supplier filter (filter by specific supplier ID)
         if (input.supplierId) {
@@ -1045,5 +1058,344 @@ export const vendorsRouter = createTRPCRouter({
           page: result.page,
         };
       }),
+  }),
+
+  /**
+   * Orders management
+   */
+  orders: createTRPCRouter({
+    /**
+     * List all orders for this supplier
+     */
+    list: baseProcedure
+      .input(
+        z.object({
+          limit: z.number().min(1).max(100).optional().default(20),
+          page: z.number().min(1).optional().default(1),
+          status: z.string().optional(),
+          search: z.string().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          sort: z.enum(['createdAt', '-createdAt', 'totalAmount', '-totalAmount']).optional().default('-createdAt'),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        const vendorId = await getVendorIdFromSession(ctx);
+        if (!vendorId) {
+          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
+        }
+
+        const where: any = {
+          supplier: { equals: vendorId },
+        };
+
+        if (input.status) {
+          where.status = { equals: input.status };
+        }
+
+        if (input.search) {
+          // Search by buyer company name (need to join through buyer relationship)
+          where.or = [
+            { poNumber: { contains: input.search } },
+            { invoiceNumber: { contains: input.search } },
+          ];
+        }
+
+        if (input.startDate || input.endDate) {
+          where.createdAt = {};
+          if (input.startDate) {
+            where.createdAt.greaterThanEqual = input.startDate;
+          }
+          if (input.endDate) {
+            where.createdAt.lessThanEqual = input.endDate;
+          }
+        }
+
+        const result = await ctx.payload.find({
+          collection: 'orders',
+          where,
+          limit: input.limit,
+          page: input.page,
+          sort: input.sort,
+          depth: 2, // Include buyer and product details
+        });
+
+        return {
+          orders: result.docs,
+          total: result.totalDocs,
+          page: input.page,
+          totalPages: Math.ceil(result.totalDocs / input.limit),
+          limit: input.limit,
+        };
+      }),
+
+    /**
+     * Get order statistics
+     */
+    stats: baseProcedure.query(async ({ ctx }) => {
+      const vendorId = await getVendorIdFromSession(ctx);
+      if (!vendorId) {
+        throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
+      }
+
+      const allOrders = await ctx.payload.find({
+        collection: 'orders',
+        where: {
+          supplier: { equals: vendorId },
+        },
+        limit: 1000,
+      });
+
+      const totalOrders = allOrders.totalDocs;
+      const totalRevenue = allOrders.docs.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0);
+      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+      // Count orders by status
+      const ordersByStatus: Record<string, number> = {};
+      allOrders.docs.forEach((order: any) => {
+        const status = order.status || 'pending';
+        ordersByStatus[status] = (ordersByStatus[status] || 0) + 1;
+      });
+
+      return {
+        totalOrders,
+        totalRevenue,
+        averageOrderValue,
+        ordersByStatus,
+      };
+    }),
+
+    /**
+     * Get single order
+     */
+    getOne: baseProcedure
+      .input(z.object({ orderId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const vendorId = await getVendorIdFromSession(ctx);
+        if (!vendorId) {
+          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
+        }
+
+        const order = await ctx.payload.findByID({
+          collection: 'orders',
+          id: input.orderId,
+          depth: 2,
+        });
+
+        // Verify order belongs to this supplier
+        const orderSupplierId = typeof order.supplier === 'object' ? order.supplier.id : order.supplier;
+        if (orderSupplierId !== vendorId) {
+          throw new Error('Order not found or access denied');
+        }
+
+        return order;
+      }),
+
+    /**
+     * Update order status
+     */
+    updateStatus: baseProcedure
+      .input(
+        z.object({
+          orderId: z.string(),
+          status: z.string(),
+          trackingNumber: z.string().optional(),
+          deliveryDate: z.string().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const vendorId = await getVendorIdFromSession(ctx);
+        if (!vendorId) {
+          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
+        }
+
+        const order = await ctx.payload.findByID({
+          collection: 'orders',
+          id: input.orderId,
+        });
+
+        // Verify order belongs to this supplier
+        const orderSupplierId = typeof order.supplier === 'object' ? order.supplier.id : order.supplier;
+        if (orderSupplierId !== vendorId) {
+          throw new Error('Order not found or access denied');
+        }
+
+        const updateData: any = {
+          status: input.status,
+        };
+
+        if (input.trackingNumber) {
+          updateData.trackingNumber = input.trackingNumber;
+        }
+
+        if (input.deliveryDate) {
+          updateData.deliveryDate = input.deliveryDate;
+        }
+
+        const updated = await ctx.payload.update({
+          collection: 'orders',
+          id: input.orderId,
+          data: updateData,
+        });
+
+        return {
+          order: updated,
+          success: true,
+          message: 'Order status updated successfully',
+        };
+      }),
+  }),
+
+  /**
+   * Buyers management
+   */
+  buyers: createTRPCRouter({
+    /**
+     * List all buyers who have placed orders with this supplier
+     */
+    list: baseProcedure
+      .input(
+        z.object({
+          limit: z.number().min(1).max(100).optional().default(20),
+          page: z.number().min(1).optional().default(1),
+          search: z.string().optional(),
+          sort: z.enum(['companyName', '-companyName', 'lastOrderDate', '-lastOrderDate', 'totalSpent', '-totalSpent']).optional().default('-lastOrderDate'),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        const vendorId = await getVendorIdFromSession(ctx);
+        if (!vendorId) {
+          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
+        }
+
+        // Get all orders for this supplier
+        const allOrders = await ctx.payload.find({
+          collection: 'orders',
+          where: {
+            supplier: { equals: vendorId },
+          },
+          limit: 1000,
+          depth: 2,
+        });
+
+        // Group orders by buyer and calculate stats
+        const buyerMap = new Map<string, {
+          buyer: any;
+          orderCount: number;
+          totalSpent: number;
+          lastOrderDate: string;
+          lastOrder: any;
+        }>();
+
+        for (const order of allOrders.docs) {
+          const buyerId = typeof order.buyer === 'object' ? order.buyer.id : order.buyer;
+          if (!buyerId) continue;
+
+          // Get buyer profile
+          const buyerProfile = await ctx.payload.find({
+            collection: 'buyers' as any,
+            where: {
+              user: { equals: buyerId },
+            },
+            limit: 1,
+            depth: 1,
+          });
+
+          if (buyerProfile.docs.length === 0) continue;
+          const buyer = buyerProfile.docs[0];
+
+          const existing = buyerMap.get(buyerId);
+          const orderDate = order.createdAt || '';
+          const orderAmount = order.totalAmount || 0;
+
+          if (existing) {
+            existing.orderCount += 1;
+            existing.totalSpent += orderAmount;
+            if (orderDate > existing.lastOrderDate) {
+              existing.lastOrderDate = orderDate;
+              existing.lastOrder = order;
+            }
+          } else {
+            buyerMap.set(buyerId, {
+              buyer,
+              orderCount: 1,
+              totalSpent: orderAmount,
+              lastOrderDate: orderDate,
+              lastOrder: order,
+            });
+          }
+        }
+
+        // Convert to array and apply filters
+        let buyers = Array.from(buyerMap.values());
+
+        // Apply search filter
+        if (input.search) {
+          buyers = buyers.filter((item) => {
+            const companyName = item.buyer.companyName || '';
+            const email = typeof item.buyer.user === 'object' ? item.buyer.user.email || '' : '';
+            return companyName.toLowerCase().includes(input.search!.toLowerCase()) ||
+                   email.toLowerCase().includes(input.search!.toLowerCase());
+          });
+        }
+
+        // Apply sorting
+        if (input.sort === 'companyName') {
+          buyers.sort((a, b) => (a.buyer.companyName || '').localeCompare(b.buyer.companyName || ''));
+        } else if (input.sort === '-companyName') {
+          buyers.sort((a, b) => (b.buyer.companyName || '').localeCompare(a.buyer.companyName || ''));
+        } else if (input.sort === 'lastOrderDate') {
+          buyers.sort((a, b) => a.lastOrderDate.localeCompare(b.lastOrderDate));
+        } else if (input.sort === '-lastOrderDate') {
+          buyers.sort((a, b) => b.lastOrderDate.localeCompare(a.lastOrderDate));
+        } else if (input.sort === 'totalSpent') {
+          buyers.sort((a, b) => a.totalSpent - b.totalSpent);
+        } else if (input.sort === '-totalSpent') {
+          buyers.sort((a, b) => b.totalSpent - a.totalSpent);
+        }
+
+        // Apply pagination
+        const skip = (input.page - 1) * input.limit;
+        const paginatedBuyers = buyers.slice(skip, skip + input.limit);
+
+        return {
+          buyers: paginatedBuyers,
+          total: buyers.length,
+          page: input.page,
+          totalPages: Math.ceil(buyers.length / input.limit),
+          limit: input.limit,
+        };
+      }),
+
+    /**
+     * Get buyer statistics
+     */
+    stats: baseProcedure.query(async ({ ctx }) => {
+      const vendorId = await getVendorIdFromSession(ctx);
+      if (!vendorId) {
+        throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
+      }
+
+      // Get all orders for this supplier
+      const allOrders = await ctx.payload.find({
+        collection: 'orders',
+        where: {
+          supplier: { equals: vendorId },
+        },
+        limit: 1000,
+      });
+
+      // Count unique buyers
+      const buyerIds = new Set<string>();
+      allOrders.docs.forEach((order: any) => {
+        const buyerId = typeof order.buyer === 'object' ? order.buyer.id : order.buyer;
+        if (buyerId) buyerIds.add(buyerId);
+      });
+
+      return {
+        totalBuyers: buyerIds.size,
+        totalOrders: allOrders.totalDocs,
+      };
+    }),
   }),
 });

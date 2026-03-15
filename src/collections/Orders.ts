@@ -250,6 +250,53 @@ export const Orders: CollectionConfig = {
         description: 'Order status',
       },
     },
+    {
+      name: 'phoneNumber',
+      type: 'text',
+      required: true,
+      admin: {
+        description: 'Customer phone number for order contact',
+      },
+    },
+    {
+      name: 'shippingAddress',
+      type: 'group',
+      fields: [
+        {
+          name: 'fullName',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'street',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'city',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'state',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'zipcode',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'country',
+          type: 'text',
+          defaultValue: 'United States',
+        },
+      ],
+      admin: {
+        description: 'Shipping address for this order',
+      },
+    },
   ],
   timestamps: true,
 };

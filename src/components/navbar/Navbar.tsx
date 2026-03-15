@@ -18,29 +18,76 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartStore } from '@/stores/cart-store';
 import { CartDrawer } from '@/components/cart/CartDrawer';
-import { ShoppingCart, Store, Search, X } from 'lucide-react';
+import { ShoppingCart, Store, Search, X, Shield } from 'lucide-react';
 import { trpc } from '@/trpc/client';
+import { checkIfAdmin } from '@/lib/auth/admin-check';
+import { ProfileDropdown } from './ProfileDropdown';
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
   const [cartOpen, setCartOpen] = useState(false);
-  const { getItemCount } = useCartStore();
-  const itemCount = getItemCount();
+  const { getItemCount, items } = useCartStore();
+  const [itemCount, setItemCount] = useState(0);
+  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
   
+  // Get session directly to check admin status
+  const { data: session, isLoading: sessionLoading } = trpc.auth.session.useQuery();
+  const sessionUser = session?.user;
+  
+  // Check admin status - check both role field and direct property access
+  const userRole = sessionUser ? ((sessionUser as any).role || (sessionUser as any)?.role) : null;
+  const isAdmin = sessionUser ? checkIfAdmin(sessionUser as any) : false;
+  
+  // Track if component has mounted to prevent hydration mismatch
+  const [hasMounted, setHasMounted] = useState(false);
+  
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+  
+  // Debug: Log admin status (remove in production)
+  useEffect(() => {
+    if (sessionUser && hasMounted) {
+      console.log('🔍 Navbar Debug:');
+      console.log('  - User ID:', sessionUser.id);
+      console.log('  - User Email:', (sessionUser as any).email);
+      console.log('  - User Role:', userRole);
+      console.log('  - User Object:', sessionUser);
+      console.log('  - Is Admin Check Result:', isAdmin);
+      console.log('  - checkIfAdmin function result:', checkIfAdmin(sessionUser as any));
+    } else if (!sessionLoading && hasMounted) {
+      console.log('🔍 Navbar Debug: No user in session');
+    }
+  }, [sessionUser, isAdmin, userRole, sessionLoading, hasMounted]);
+
+  // Update cart count after mount to avoid hydration mismatch
+  useEffect(() => {
+    setIsMounted(true);
+    setItemCount(getItemCount());
+  }, [getItemCount]);
+
+  // Update cart count when items change
+  useEffect(() => {
+    if (isMounted) {
+      setItemCount(getItemCount());
+    }
+  }, [items, getItemCount, isMounted]);
+  
   // Get selected supplier from URL
   const selectedSupplierId = searchParams.get('supplier') || undefined;
   
-  // Fetch all approved vendors for dropdown
+  // Fetch all published vendors for dropdown (only approved and active)
   const { data: vendorsData } = trpc.vendors.list.useQuery({
     limit: 100,
     verified: undefined, // Get all vendors
+    includeUnpublished: false, // Only published suppliers
   });
   
-  // Filter vendors by search query
+  // Filter vendors by search query (vendors are already filtered to published only by the query)
   const filteredVendors = vendorsData?.vendors.filter((vendor) => {
     const companyName = (vendor as any).companyName || '';
     return companyName.toLowerCase().includes(supplierSearchQuery.toLowerCase());
@@ -96,6 +143,17 @@ export function Navbar() {
           >
             About
           </Link>
+          
+          {/* Admin Dashboard Link - Only visible to admins (after mount to prevent hydration mismatch) */}
+          {hasMounted && isAdmin && (
+            <Link
+              href="/app-admin/dashboard"
+              className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary text-blue-600"
+            >
+              <Shield className="w-4 h-4" />
+              Admin Dashboard
+            </Link>
+          )}
           
           {/* Suppliers Dropdown */}
           <DropdownMenu open={isSupplierDropdownOpen} onOpenChange={setIsSupplierDropdownOpen}>
@@ -166,7 +224,7 @@ export function Navbar() {
             onClick={() => setCartOpen(true)}
           >
             <ShoppingCart className="h-5 w-5" />
-            {itemCount > 0 && (
+            {isMounted && itemCount > 0 && (
               <Badge
                 variant="destructive"
                 className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
@@ -177,53 +235,7 @@ export function Navbar() {
           </Button>
 
           {isAuthenticated ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                  <Avatar>
-                    <AvatarFallback>{getUserInitials(user?.name)}</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {user?.name || 'User'}
-                    </p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {user?.email}
-                    </p>
-                    {user?.role && (
-                      <span className="text-xs text-muted-foreground capitalize">
-                        {user.role}
-                      </span>
-                    )}
-                  </div>
-                </DropdownMenuLabel>
-                {user?.role === 'vendor' && (
-                  <>
-                    <DropdownMenuItem asChild>
-                      <Link href="/vendor/dashboard">Vendor Dashboard</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                {user?.role === 'buyer' && (
-                  <>
-                    <DropdownMenuItem asChild>
-                      <Link href="/buyer/dashboard">Buyer Dashboard</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                <DropdownMenuItem asChild>
-                  <Link href="/profile">Profile</Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout}>Log out</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ProfileDropdown user={user} hasMounted={hasMounted} isAdmin={isAdmin} logout={logout} />
           ) : (
             <Button asChild variant="default">
               <Link href="/login">Login</Link>

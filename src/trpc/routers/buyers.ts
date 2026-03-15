@@ -458,17 +458,14 @@ export const buyersRouter = createTRPCRouter({
         z.object({
           limit: z.number().min(1).max(100).optional().default(20),
           page: z.number().min(1).optional().default(1),
-          status: z.enum(['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled']).optional().default('all'),
-          paymentStatus: z.enum(['all', 'pending', 'paid', 'refunded']).optional().default('all'),
+          status: z.string().optional(),
+          search: z.string().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          sort: z.enum(['createdAt', '-createdAt', 'totalAmount', '-totalAmount']).optional().default('-createdAt'),
         }),
       )
       .query(async ({ ctx, input }) => {
-        const buyerId = await getBuyerIdFromSession(ctx);
-        if (!buyerId) {
-          throw new Error('Buyer not found. Please ensure you are logged in as a buyer.');
-        }
-
-        // Orders collection uses buyer as user relationship, need to get user ID
         const payload = ctx.payload || await getPayload({ config });
         const { user } = await payload.auth({ headers: ctx.headers });
 
@@ -476,36 +473,114 @@ export const buyersRouter = createTRPCRouter({
           throw new Error('User not authenticated');
         }
 
-        const where: Record<string, unknown> = {
+        const where: any = {
           buyer: { equals: user.id },
         };
 
-        if (input.status !== 'all') {
+        if (input.status) {
           where.status = { equals: input.status };
         }
 
-        if (input.paymentStatus !== 'all') {
-          // Assuming payment status is in payment relationship or embedded
-          // This may need adjustment based on Orders collection structure
-          where['payment.status'] = { equals: input.paymentStatus };
+        if (input.search) {
+          where.or = [
+            { poNumber: { contains: input.search } },
+            { invoiceNumber: { contains: input.search } },
+          ];
+        }
+
+        if (input.startDate || input.endDate) {
+          where.createdAt = {};
+          if (input.startDate) {
+            where.createdAt.greaterThanEqual = input.startDate;
+          }
+          if (input.endDate) {
+            where.createdAt.lessThanEqual = input.endDate;
+          }
         }
 
         const result = await ctx.payload.find({
           collection: 'orders',
-          where: where as any,
+          where,
           limit: input.limit,
           page: input.page,
-          sort: '-createdAt',
-          depth: 2,
+          sort: input.sort,
+          depth: 2, // Include supplier and product details
         });
 
         return {
           orders: result.docs,
-          totalDocs: result.totalDocs,
-          totalPages: result.totalPages,
-          page: result.page,
+          total: result.totalDocs,
+          page: input.page,
+          totalPages: Math.ceil(result.totalDocs / input.limit),
+          limit: input.limit,
         };
       }),
+
+    /**
+     * Get single order
+     */
+    getOne: baseProcedure
+      .input(z.object({ orderId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const payload = ctx.payload || await getPayload({ config });
+        const { user } = await payload.auth({ headers: ctx.headers });
+
+        if (!user) {
+          throw new Error('User not authenticated');
+        }
+
+        const order = await ctx.payload.findByID({
+          collection: 'orders',
+          id: input.orderId,
+          depth: 2,
+        });
+
+        // Verify order belongs to this buyer
+        const orderBuyerId = typeof order.buyer === 'object' ? order.buyer.id : order.buyer;
+        if (orderBuyerId !== user.id) {
+          throw new Error('Order not found or access denied');
+        }
+
+        return order;
+      }),
+
+    /**
+     * Get order statistics
+     */
+    stats: baseProcedure.query(async ({ ctx }) => {
+      const payload = ctx.payload || await getPayload({ config });
+      const { user } = await payload.auth({ headers: ctx.headers });
+
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const allOrders = await ctx.payload.find({
+        collection: 'orders',
+        where: {
+          buyer: { equals: user.id },
+        },
+        limit: 1000,
+      });
+
+      const totalOrders = allOrders.totalDocs;
+      const totalSpent = allOrders.docs.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0);
+      const averageOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
+
+      // Count orders by status
+      const ordersByStatus: Record<string, number> = {};
+      allOrders.docs.forEach((order: any) => {
+        const status = order.status || 'pending';
+        ordersByStatus[status] = (ordersByStatus[status] || 0) + 1;
+      });
+
+      return {
+        totalOrders,
+        totalSpent,
+        averageOrderValue,
+        ordersByStatus,
+      };
+    }),
 
     count: baseProcedure
       .query(async ({ ctx }) => {

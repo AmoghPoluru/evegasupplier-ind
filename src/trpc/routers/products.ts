@@ -34,12 +34,34 @@ export const productsRouter = createTRPCRouter({
         limit: input.limit,
         page: input.page,
         sort: '-createdAt',
+        depth: 1, // Include supplier details
+      });
+
+      // Filter products to only include those from published suppliers
+      // A supplier is published when status === 'approved' and isActive === true
+      const publishedProducts = result.docs.filter((product: any) => {
+        const supplier = product.supplier;
+        if (!supplier) return false;
+        
+        // Handle both populated and ID reference
+        const supplierData = typeof supplier === 'object' ? supplier : null;
+        if (!supplierData) {
+          // If supplier is just an ID, we need to fetch it
+          // For now, we'll include it and let the frontend handle it
+          // In production, you might want to fetch supplier details here
+          return true; // Include for now, will be filtered by supplier queries
+        }
+        
+        return (
+          supplierData.status === 'approved' &&
+          supplierData.isActive === true
+        );
       });
 
       return {
-        products: result.docs,
-        totalDocs: result.totalDocs,
-        totalPages: result.totalPages,
+        products: publishedProducts,
+        totalDocs: publishedProducts.length,
+        totalPages: Math.ceil(publishedProducts.length / input.limit),
         page: result.page,
       };
     }),

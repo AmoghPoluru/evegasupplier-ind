@@ -49,17 +49,33 @@ export async function getVendorStatus(): Promise<VendorStatus> {
   }
 
   // Check vendor status
-  // For now, we'll use verifiedSupplier as the approval status
-  // You can add a custom status field later if needed
-  const isVerified = vendor.verifiedSupplier === true;
-  const isArchived = (vendor as any).isArchived === true;
-  const isActive = !isArchived && isVerified;
+  // Use status field ('pending', 'approved', 'rejected', 'suspended')
+  // and isActive field to determine vendor access
+  // Backward compatibility: if status is null/undefined, check verifiedSupplier field
+  let vendorStatus = (vendor as any).status;
+  const vendorIsActive = (vendor as any).isActive === true;
+  
+  // Backward compatibility: if status is not set, use verifiedSupplier to determine status
+  if (!vendorStatus || vendorStatus === null || vendorStatus === undefined) {
+    const verifiedSupplier = (vendor as any).verifiedSupplier === true;
+    vendorStatus = verifiedSupplier ? 'approved' : 'pending';
+  }
+  
+  // Determine status for return value
+  let status: 'approved' | 'pending' | 'suspended' | null = null;
+  if (vendorStatus === 'approved' && vendorIsActive) {
+    status = 'approved';
+  } else if (vendorStatus === 'suspended') {
+    status = 'suspended';
+  } else {
+    status = 'pending';
+  }
 
   return {
     hasVendor: true,
     vendor,
-    status: isVerified ? 'approved' : 'pending',
-    isActive: isActive && isVerified,
+    status,
+    isActive: vendorStatus === 'approved' && vendorIsActive,
   };
 }
 

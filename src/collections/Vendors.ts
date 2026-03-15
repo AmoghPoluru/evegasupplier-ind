@@ -411,5 +411,30 @@ export const Vendors: CollectionConfig = {
         description: 'Shipping and logistics capabilities',
       },
     },
+    // Vendor approval status
+    {
+      name: 'status',
+      type: 'select',
+      options: [
+        { label: 'Pending', value: 'pending' },
+        { label: 'Approved', value: 'approved' },
+        { label: 'Rejected', value: 'rejected' },
+        { label: 'Suspended', value: 'suspended' },
+      ],
+      defaultValue: 'pending',
+      admin: {
+        description: 'Vendor approval status',
+      },
+    },
+    // Vendor active status
+    {
+      name: 'isActive',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Active vendors can sell products. Vendors must be approved and active to appear in the marketplace.',
+      },
+    },
   ],
+  timestamps: true,
 };

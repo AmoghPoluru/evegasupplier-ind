@@ -4,12 +4,16 @@ import { authRouter } from './auth';
 import { vendorsRouter } from './vendors';
 import { buyersRouter } from './buyers';
 import { productsRouter } from './products';
+import { checkoutRouter } from './checkout';
+import { adminRouter } from './admin';
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
   vendors: vendorsRouter,
   buyers: buyersRouter,
   products: productsRouter,
+  checkout: checkoutRouter,
+  admin: adminRouter,
   hello: baseProcedure
     .input(
       z.object({
