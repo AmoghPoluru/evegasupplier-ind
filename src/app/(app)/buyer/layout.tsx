@@ -1,6 +1,7 @@
 import { getBuyerStatus } from '@/lib/middleware/buyer-auth';
 import { BuyerSidebar } from './components/BuyerSidebar';
 import { BuyerHeader } from './components/BuyerHeader';
+import { BdoChatFloating } from '@/components/bdo/BdoChatFloating';
 
 export default async function BuyerLayout({
   children,
@@ -25,6 +26,7 @@ export default async function BuyerLayout({
           {children}
         </main>
       </div>
+      <BdoChatFloating profileKind="buyer" />
     </div>
   );
 }

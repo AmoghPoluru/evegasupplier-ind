@@ -1,7 +1,7 @@
 import { getVendorStatus } from '@/lib/middleware/vendor-auth';
 import { VendorSidebar } from './components/VendorSidebar';
 import { VendorHeader } from './components/VendorHeader';
-import { redirect } from 'next/navigation';
+import { BdoChatFloating } from '@/components/bdo/BdoChatFloating';
 
 export default async function VendorLayout({
   children,
@@ -26,6 +26,7 @@ export default async function VendorLayout({
           {children}
         </main>
       </div>
+      <BdoChatFloating profileKind="vendor" />
     </div>
   );
 }

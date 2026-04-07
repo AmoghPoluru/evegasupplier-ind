@@ -80,6 +80,49 @@
 **Buyer Dashboard - Orders Management (Tasks 851-900)**: 0/50 completed (0%)
 - Pending: Buyer orders list with filters, order tracking, order management, reviews and ratings
 
+## Todo List
+
+Prioritized checklist for day-to-day execution. Full specifications stay in the numbered tasks below. Check items off as you complete them.
+
+
+### Public marketplace & access
+
+- [ ] Marketplace home (`/`): **signed-in users only** see the full supplier list; signed-out users see a **please log in** message and links to `/login` / `/signup`
+  - **Tech**: `src/app/(app)/page.tsx` — `'use client'` App Router page; `HomeContent` calls `trpc.auth.session.useQuery()` (Payload session via existing tRPC `auth.session` procedure + cookies).
+  - **Flow**: While session is loading → full-page loading spinner. If `!session?.user` → render `LoginGate` (shadcn `Card` / `Alert`, **Log in** → `/login`, **Create an account** → `/signup`). If `session.user` → render `SuppliersMarketplaceList`, which calls `trpc.vendors.marketplace.list.useQuery({ limit, page, includeProducts, supplierId })` (same public marketplace API as before; no extra auth on the procedure).
+  - **Scope**: Access control is **client-side UI gating** only; `src/middleware.ts` does not block `/`. To enforce auth at the edge or for SEO, add middleware/`redirect()` later.
+- [ ] **Detailed checklist** (seed, DB, homepage access): see **User requirements — todo checklist** (section before *Public Marketplace - Homepage*)
+  - **Related**: Sample data — `npm run db:seed` → `src/seed/seed-sample-data.ts` → `src/seed/seed.ts`; DB URL — `DATABASE_URL` / optional `MONGODB_URI` in `.env` for Payload + seed scripts.
+
+### Admin dashboard
+
+- [ ] Admin authentication middleware and `/app-admin` layout (Tasks 695–709)
+- [ ] Dashboard overview, stats widgets, navigation (Tasks 695–709)
+- [ ] Vendor approval/rejection, pending vendors list, filters, detail modal (Tasks 710–730)
+- [ ] Supplier & buyer management lists, edit/delete, cascading deletes where required (Tasks 734–780)
+
+### Checkout & buyers
+
+- [ ] Checkout access control: buyer-only validation, role checks, UI for non-buyers (Tasks 731–733)
+- [ ] Optional: order confirmation email (Tasks 675–694)
+
+### Supplier (vendor) dashboard
+
+- [ ] Supplier orders list, filters, order actions (Tasks 781–850)
+- [ ] Supplier buyers list and relationship management (Tasks 781–850)
+
+### Buyer dashboard
+
+- [ ] Buyer orders list, tracking, filters (Tasks 851–900)
+- [ ] Buyer quotes: list, table, compare, detail, accept/reject, filters, tests (Tasks 450–457)
+
+### Quality & verification
+
+- [ ] Manual CRUD testing for B2B collections (RFQs, Quotes, Inquiries, Orders, etc.)
+- [ ] Manual testing: homepage supplier filter, product quantity/bulk pricing, checkout flow
+
+---
+
 ## Project Setup & Initialization
 
 1. ✅ Create new Next.js project with TypeScript
@@ -2711,6 +2754,27 @@
    - **Details**: Test quote listing, filtering, comparison tool, accept/reject workflow, order creation from accepted quote
    - **Buyer Isolation**: Verify buyers only see quotes for their RFQs
    - **Status**: ❌ Not yet implemented
+
+## User requirements — todo checklist
+
+> **Purpose**: Tracks agreed product requirements (sample data, MongoDB, **homepage only when logged in**). Implementation: `src/seed/seed.ts`, `src/seed/seed-sample-data.ts`, `src/app/(app)/page.tsx`.
+
+### Sample data & database
+
+- [ ] `.env` has a valid MongoDB URI: `DATABASE_URL=mongodb://…` or `mongodb+srv://…` (optional: `MONGODB_URI` for seed)
+- [ ] `npm run db:seed` runs successfully (sample admin, vendors, products, buyer, orders)
+- [ ] Seeded accounts work for login (see `npm run db:seed` output / **Todo List** above)
+
+### Homepage (`/`) — login required
+
+- [ ] **Signed out**: “Please log in” message and CTAs to `/login` and `/signup`; marketplace list hidden
+- [ ] **Signed in**: full Suppliers Marketplace (`trpc.auth.session` then `vendors.marketplace.list`)
+
+### Follow-ups (optional)
+
+- [ ] Checkout / orders may still require buyer role or verified buyer separately (other tasks)
+
+---
 
 ## Public Marketplace - Homepage
 
@@ -5802,3 +5866,409 @@ This list covers everything from initial project setup to post-launch monitoring
   - **Fix**: Added `isMounted` state and `useEffect` hooks to only render badge after client-side mount
   - **Files**: `src/components/navbar/Navbar.tsx`
   - **Technical Details**: Used `useState` for `isMounted` and `itemCount`, `useEffect` to update count after mount and when items change, conditional rendering with `{isMounted && itemCount > 0 && <Badge>}`
+
+---
+
+## Vendor Products - Inventory Tracking & Auto-Draft (Tasks 1001-1020)
+
+**Technical Context**: Products have variants with stock. Orders track sold quantities. Need to display sold/remaining inventory and auto-draft products when stock reaches 0.
+
+**Completed Foundation**: ✅ Products collection has `variants` array with `stock` field. ✅ Orders collection tracks `product`, `quantity`, `size`, `color`. ✅ ProductsTable component exists with stock display.
+
+### Inventory Statistics & Display
+
+1001. ❌ Create vendor.products.stats tRPC query to calculate sold quantity per product
+   - **Tech**: Create `vendor.products.stats` query in `src/modules/vendor/server/procedures.ts`
+   - **Details**:
+     - Input: `z.object({ productIds: z.array(z.string()) })` - array of product IDs
+     - Query orders collection filtered by vendor and product IDs
+     - Aggregate sold quantities: sum `order.quantity` for each product
+     - Handle variant-specific orders: if order has `size`/`color`, count towards that variant's sold count
+     - Return: `Record<string, { sold: number, remaining: number }>` - productId -> stats
+   - **Query**: `await ctx.db.find({ collection: 'orders', where: { vendor: { equals: vendorId }, product: { in: productIds } }, limit: 1000 })`
+   - **Aggregation**: Group by productId, sum quantities, calculate remaining from product variants stock
+
+1002. ❌ Update vendor.products.list query to include soldCount and remainingStock
+   - **Tech**: Modify `vendor.products.list` in `src/modules/vendor/server/procedures.ts`
+   - **Details**:
+     - After fetching products, get product IDs array
+     - Call `vendor.products.stats` query (or inline calculation) to get sold counts
+     - For each product, calculate:
+       - `soldCount`: Sum of `order.quantity` for orders with this product
+       - `remainingStock`: Sum of all variant stocks (or base stock if no variants)
+     - Add `soldCount` and `remainingStock` to each product in response
+   - **Return**: Extend product objects with `{ soldCount: number, remainingStock: number }`
+
+1003. ❌ Add Sold column to ProductsTable showing total quantity sold
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add new `TableHead` column header: "Sold"
+     - Display `product.soldCount || 0` in `TableCell`
+     - Format as number with comma separators (e.g., "1,234")
+     - Add tooltip or helper text: "Total units sold"
+   - **Styling**: Right-align numbers, use `text-gray-900` for value
+
+1004. ❌ Add Remaining column to ProductsTable showing current stock
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add new `TableHead` column header: "Remaining"
+     - Display `product.remainingStock || 0` in `TableCell`
+     - Format as number with comma separators
+     - Color coding: Red if 0, yellow if < 5, green if >= 5
+   - **Styling**: Right-align, conditional text color classes
+
+1005. ❌ Update ProductsTable to display sold and remaining inventory with proper formatting
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Replace existing "Stock" column with "Sold" and "Remaining" columns
+     - Use `getStockQuantity()` helper for remaining (sum of variant stocks)
+     - Add `getSoldQuantity()` helper that reads from `product.soldCount`
+     - Format numbers: `new Intl.NumberFormat('en-US').format(value)`
+     - Add loading skeleton cells for new columns
+   - **Columns Order**: Image, Name, Price, Sold, Remaining, Status, Created, Actions
+
+1006. ❌ Add visual indicators (badges/colors) for low stock and out of stock products
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Out of stock (remaining = 0): Red text, "Out of Stock" badge
+     - Low stock (remaining < 5): Yellow/orange text, "Low Stock" badge
+     - In stock (remaining >= 5): Green text, no badge
+     - Apply to "Remaining" column cell
+   - **Badge**: Use shadcn/ui `Badge` component with variant="destructive" or "warning"
+
+### Auto-Draft on Zero Inventory
+
+1007. ❌ Add beforeChange hook in Products collection to auto-set isPrivate=true when total stock reaches 0
+   - **Tech**: Update `src/collections/Products.ts`
+   - **Details**:
+     - Add hook in `hooks.beforeChange` array
+     - Calculate total stock: sum of all variant stocks (or base stock if no variants)
+     - If total stock === 0 and product is not already private:
+       - Set `data.isPrivate = true` (draft status)
+       - Optionally add note: "Auto-drafted: Out of stock"
+     - Only apply on update operations (not create)
+   - **Logic**: `const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0; if (totalStock === 0) data.isPrivate = true;`
+
+1008. ❌ Add afterChange hook to check stock after variant updates and auto-draft if needed
+   - **Tech**: Update `src/collections/Products.ts`
+   - **Details**:
+     - Add hook in `hooks.afterChange` array
+     - After product update, recalculate total stock from variants
+     - If total stock === 0 and product is published (`isPrivate === false`):
+       - Update product: `await req.payload.update({ collection: 'products', id: doc.id, data: { isPrivate: true } })`
+     - Log action: "Product auto-drafted due to zero inventory"
+   - **Trigger**: Only on update operations where variants or stock changed
+
+1009. ❌ Add afterChange hook in Orders collection to check product stock after order creation and auto-draft if needed
+   - **Tech**: Update `src/collections/Orders.ts`
+   - **Details**:
+     - Add hook in `hooks.afterChange` array
+     - After order creation, get product and update stock
+     - Recalculate total stock after stock decrement
+     - If total stock === 0 and product is published:
+       - Update product: `await req.payload.update({ collection: 'products', id: productId, data: { isPrivate: true } })`
+     - Log action: "Product auto-drafted: Stock depleted after order"
+   - **Trigger**: Only on create operations, after stock update
+
+1010. ❌ Update ProductsTable skeleton loading state to include new columns
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add skeleton cells for "Sold" and "Remaining" columns in loading state
+     - Use `<Skeleton className="h-4 w-16" />` for number columns
+     - Ensure skeleton row has same number of cells as actual rows
+   - **Skeleton Count**: Match existing skeleton pattern (5 rows)
+
+### Additional Enhancements
+
+1011. ❌ Add inventory summary card above ProductsTable showing total sold, total remaining, low stock count
+   - **Tech**: Create `src/app/(app)/vendor/products/components/InventorySummary.tsx`
+   - **Details**:
+     - Calculate totals from products list: sum of soldCount, sum of remainingStock
+     - Count products with remainingStock < 5 (low stock)
+     - Display in Card component with 3 stat cards
+     - Use icons: TrendingUp (sold), Package (remaining), AlertTriangle (low stock)
+   - **Placement**: Above filters/search bar
+
+1012. ❌ Add filter option to show only low stock products (remaining < 5)
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add "Low Stock" option to status filter dropdown
+     - Filter products where `remainingStock < 5 && remainingStock > 0`
+     - Update `vendor.products.list` query to support low stock filter
+   - **Filter**: Add `lowStock: z.boolean().optional()` to query input
+
+1013. ❌ Add filter option to show only out of stock products (remaining = 0)
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add "Out of Stock" option to status filter dropdown
+     - Filter products where `remainingStock === 0`
+     - Update `vendor.products.list` query to support out of stock filter
+   - **Filter**: Add `outOfStock: z.boolean().optional()` to query input
+
+1014. ❌ Add bulk action to restock products (add stock to selected products)
+   - **Tech**: Create `vendor.products.bulkRestock` mutation
+   - **Details**:
+     - Input: `z.object({ productIds: z.array(z.string()), stockToAdd: z.number().min(1) })`
+     - For each product, add stock to all variants (or base stock)
+     - After restock, check if product should be re-published (if stock > 0 and isPrivate)
+     - Return updated products with new stock values
+   - **Mutation**: Update each product's variants array, increment stock
+
+1015. ❌ Add tooltip or info icon explaining sold vs remaining inventory
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add Info icon next to "Sold" and "Remaining" column headers
+     - Use shadcn/ui Tooltip component
+     - Tooltip text: "Sold: Total units sold from orders. Remaining: Current available inventory."
+   - **Component**: Import `Info` from lucide-react, wrap in Tooltip
+
+1016. ❌ Add export functionality to export products with inventory data (CSV)
+   - **Tech**: Create `vendor.products.export` query
+   - **Details**:
+     - Return products with soldCount and remainingStock
+     - Format as CSV with columns: Name, Price, Sold, Remaining, Status, Created
+     - Generate CSV string, return as downloadable file
+   - **Export**: Use `csv-stringify` or manual CSV generation
+
+1017. ❌ Add inventory history tracking (optional - track stock changes over time)
+   - **Tech**: Create `inventory-history` collection or add `stockHistory` array to Products
+   - **Details**:
+     - Track stock changes: timestamp, old value, new value, reason (order, restock, manual)
+     - Display in product detail/edit page
+     - Optional feature - can be added later
+   - **Collection**: `{ productId, timestamp, oldStock, newStock, reason, orderId? }`
+
+1018. ❌ Add notification/alert when product is auto-drafted
+   - **Tech**: Update auto-draft hooks to send notification
+   - **Details**:
+     - When product is auto-drafted, create notification or log event
+     - Optionally send email to vendor: "Product [name] has been moved to draft due to zero inventory"
+     - Display toast notification in vendor dashboard
+   - **Notification**: Use existing notification system or email service
+
+1019. ❌ Add manual override to prevent auto-draft (vendor can opt-out)
+   - **Tech**: Add `preventAutoDraft` boolean field to Products collection
+   - **Details**:
+     - Add checkbox field: "Prevent auto-draft when out of stock"
+     - In auto-draft hooks, check `product.preventAutoDraft` before drafting
+     - Default: false (auto-draft enabled)
+   - **Field**: `{ name: 'preventAutoDraft', type: 'checkbox', defaultValue: false }`
+
+1020. ❌ Add inventory threshold configuration (vendor can set low stock threshold)
+   - **Tech**: Add `lowStockThreshold` field to Vendors collection
+   - **Details**:
+     - Add number field: "Low stock threshold (default: 5)"
+     - Use this value instead of hardcoded 5 for low stock detection
+     - Display in inventory summary and filters
+   - **Field**: `{ name: 'lowStockThreshold', type: 'number', defaultValue: 5, min: 0 }`
+
+**Technical Details:**
+- Sold count: Aggregate from orders collection, sum `order.quantity` where `order.product === productId`
+- Remaining stock: Sum of `variant.stock` for all variants, or base product stock if no variants
+- Auto-draft: Set `isPrivate: true` when total stock reaches 0, triggers in beforeChange/afterChange hooks
+- Stock calculation: `const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0;`
+- Order aggregation: Query orders filtered by vendor and product, group by productId, sum quantities
+- Variant handling: If order has size/color, count towards specific variant; otherwise count towards base product
+
+---
+
+## Vendor Products - Inventory Tracking & Auto-Draft (Tasks 1001-1020)
+
+**Technical Context**: Products have variants with stock. Orders track sold quantities. Need to display sold/remaining inventory and auto-draft products when stock reaches 0.
+
+**Completed Foundation**: ✅ Products collection has `variants` array with `stock` field. ✅ Orders collection tracks `product`, `quantity`, `size`, `color`. ✅ ProductsTable component exists with stock display.
+
+### Inventory Statistics & Display
+
+1001. ❌ Create vendor.products.stats tRPC query to calculate sold quantity per product
+   - **Tech**: Create `vendor.products.stats` query in `src/modules/vendor/server/procedures.ts`
+   - **Details**:
+     - Input: `z.object({ productIds: z.array(z.string()) })` - array of product IDs
+     - Query orders collection filtered by vendor and product IDs
+     - Aggregate sold quantities: sum `order.quantity` for each product
+     - Handle variant-specific orders: if order has `size`/`color`, count towards that variant's sold count
+     - Return: `Record<string, { sold: number, remaining: number }>` - productId -> stats
+   - **Query**: `await ctx.db.find({ collection: 'orders', where: { vendor: { equals: vendorId }, product: { in: productIds } }, limit: 1000 })`
+   - **Aggregation**: Group by productId, sum quantities, calculate remaining from product variants stock
+
+1002. ❌ Update vendor.products.list query to include soldCount and remainingStock
+   - **Tech**: Modify `vendor.products.list` in `src/modules/vendor/server/procedures.ts`
+   - **Details**:
+     - After fetching products, get product IDs array
+     - Call `vendor.products.stats` query (or inline calculation) to get sold counts
+     - For each product, calculate:
+       - `soldCount`: Sum of `order.quantity` for orders with this product
+       - `remainingStock`: Sum of all variant stocks (or base stock if no variants)
+     - Add `soldCount` and `remainingStock` to each product in response
+   - **Return**: Extend product objects with `{ soldCount: number, remainingStock: number }`
+
+1003. ❌ Add Sold column to ProductsTable showing total quantity sold
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add new `TableHead` column header: "Sold"
+     - Display `product.soldCount || 0` in `TableCell`
+     - Format as number with comma separators (e.g., "1,234")
+     - Add tooltip or helper text: "Total units sold"
+   - **Styling**: Right-align numbers, use `text-gray-900` for value
+
+1004. ❌ Add Remaining column to ProductsTable showing current stock
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add new `TableHead` column header: "Remaining"
+     - Display `product.remainingStock || 0` in `TableCell`
+     - Format as number with comma separators
+     - Color coding: Red if 0, yellow if < 5, green if >= 5
+   - **Styling**: Right-align, conditional text color classes
+
+1005. ❌ Update ProductsTable to display sold and remaining inventory with proper formatting
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Replace existing "Stock" column with "Sold" and "Remaining" columns
+     - Use `getStockQuantity()` helper for remaining (sum of variant stocks)
+     - Add `getSoldQuantity()` helper that reads from `product.soldCount`
+     - Format numbers: `new Intl.NumberFormat('en-US').format(value)`
+     - Add loading skeleton cells for new columns
+   - **Columns Order**: Image, Name, Price, Sold, Remaining, Status, Created, Actions
+
+1006. ❌ Add visual indicators (badges/colors) for low stock and out of stock products
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Out of stock (remaining = 0): Red text, "Out of Stock" badge
+     - Low stock (remaining < 5): Yellow/orange text, "Low Stock" badge
+     - In stock (remaining >= 5): Green text, no badge
+     - Apply to "Remaining" column cell
+   - **Badge**: Use shadcn/ui `Badge` component with variant="destructive" or "warning"
+
+### Auto-Draft on Zero Inventory
+
+1007. ❌ Add beforeChange hook in Products collection to auto-set isPrivate=true when total stock reaches 0
+   - **Tech**: Update `src/collections/Products.ts`
+   - **Details**:
+     - Add hook in `hooks.beforeChange` array
+     - Calculate total stock: sum of all variant stocks (or base stock if no variants)
+     - If total stock === 0 and product is not already private:
+       - Set `data.isPrivate = true` (draft status)
+       - Optionally add note: "Auto-drafted: Out of stock"
+     - Only apply on update operations (not create)
+   - **Logic**: `const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0; if (totalStock === 0) data.isPrivate = true;`
+
+1008. ❌ Add afterChange hook to check stock after variant updates and auto-draft if needed
+   - **Tech**: Update `src/collections/Products.ts`
+   - **Details**:
+     - Add hook in `hooks.afterChange` array
+     - After product update, recalculate total stock from variants
+     - If total stock === 0 and product is published (`isPrivate === false`):
+       - Update product: `await req.payload.update({ collection: 'products', id: doc.id, data: { isPrivate: true } })`
+     - Log action: "Product auto-drafted due to zero inventory"
+   - **Trigger**: Only on update operations where variants or stock changed
+
+1009. ❌ Add afterChange hook in Orders collection to check product stock after order creation and auto-draft if needed
+   - **Tech**: Update `src/collections/Orders.ts`
+   - **Details**:
+     - Add hook in `hooks.afterChange` array
+     - After order creation, get product and update stock
+     - Recalculate total stock after stock decrement
+     - If total stock === 0 and product is published:
+       - Update product: `await req.payload.update({ collection: 'products', id: productId, data: { isPrivate: true } })`
+     - Log action: "Product auto-drafted: Stock depleted after order"
+   - **Trigger**: Only on create operations, after stock update
+
+1010. ❌ Update ProductsTable skeleton loading state to include new columns
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add skeleton cells for "Sold" and "Remaining" columns in loading state
+     - Use `<Skeleton className="h-4 w-16" />` for number columns
+     - Ensure skeleton row has same number of cells as actual rows
+   - **Skeleton Count**: Match existing skeleton pattern (5 rows)
+
+### Additional Enhancements
+
+1011. ❌ Add inventory summary card above ProductsTable showing total sold, total remaining, low stock count
+   - **Tech**: Create `src/app/(app)/vendor/products/components/InventorySummary.tsx`
+   - **Details**:
+     - Calculate totals from products list: sum of soldCount, sum of remainingStock
+     - Count products with remainingStock < 5 (low stock)
+     - Display in Card component with 3 stat cards
+     - Use icons: TrendingUp (sold), Package (remaining), AlertTriangle (low stock)
+   - **Placement**: Above filters/search bar
+
+1012. ❌ Add filter option to show only low stock products (remaining < 5)
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add "Low Stock" option to status filter dropdown
+     - Filter products where `remainingStock < 5 && remainingStock > 0`
+     - Update `vendor.products.list` query to support low stock filter
+   - **Filter**: Add `lowStock: z.boolean().optional()` to query input
+
+1013. ❌ Add filter option to show only out of stock products (remaining = 0)
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add "Out of Stock" option to status filter dropdown
+     - Filter products where `remainingStock === 0`
+     - Update `vendor.products.list` query to support out of stock filter
+   - **Filter**: Add `outOfStock: z.boolean().optional()` to query input
+
+1014. ❌ Add bulk action to restock products (add stock to selected products)
+   - **Tech**: Create `vendor.products.bulkRestock` mutation
+   - **Details**:
+     - Input: `z.object({ productIds: z.array(z.string()), stockToAdd: z.number().min(1) })`
+     - For each product, add stock to all variants (or base stock)
+     - After restock, check if product should be re-published (if stock > 0 and isPrivate)
+     - Return updated products with new stock values
+   - **Mutation**: Update each product's variants array, increment stock
+
+1015. ❌ Add tooltip or info icon explaining sold vs remaining inventory
+   - **Tech**: Update `src/app/(app)/vendor/products/components/ProductsTable.tsx`
+   - **Details**:
+     - Add Info icon next to "Sold" and "Remaining" column headers
+     - Use shadcn/ui Tooltip component
+     - Tooltip text: "Sold: Total units sold from orders. Remaining: Current available inventory."
+   - **Component**: Import `Info` from lucide-react, wrap in Tooltip
+
+1016. ❌ Add export functionality to export products with inventory data (CSV)
+   - **Tech**: Create `vendor.products.export` query
+   - **Details**:
+     - Return products with soldCount and remainingStock
+     - Format as CSV with columns: Name, Price, Sold, Remaining, Status, Created
+     - Generate CSV string, return as downloadable file
+   - **Export**: Use `csv-stringify` or manual CSV generation
+
+1017. ❌ Add inventory history tracking (optional - track stock changes over time)
+   - **Tech**: Create `inventory-history` collection or add `stockHistory` array to Products
+   - **Details**:
+     - Track stock changes: timestamp, old value, new value, reason (order, restock, manual)
+     - Display in product detail/edit page
+     - Optional feature - can be added later
+   - **Collection**: `{ productId, timestamp, oldStock, newStock, reason, orderId? }`
+
+1018. ❌ Add notification/alert when product is auto-drafted
+   - **Tech**: Update auto-draft hooks to send notification
+   - **Details**:
+     - When product is auto-drafted, create notification or log event
+     - Optionally send email to vendor: "Product [name] has been moved to draft due to zero inventory"
+     - Display toast notification in vendor dashboard
+   - **Notification**: Use existing notification system or email service
+
+1019. ❌ Add manual override to prevent auto-draft (vendor can opt-out)
+   - **Tech**: Add `preventAutoDraft` boolean field to Products collection
+   - **Details**:
+     - Add checkbox field: "Prevent auto-draft when out of stock"
+     - In auto-draft hooks, check `product.preventAutoDraft` before drafting
+     - Default: false (auto-draft enabled)
+   - **Field**: `{ name: 'preventAutoDraft', type: 'checkbox', defaultValue: false }`
+
+1020. ❌ Add inventory threshold configuration (vendor can set low stock threshold)
+   - **Tech**: Add `lowStockThreshold` field to Vendors collection
+   - **Details**:
+     - Add number field: "Low stock threshold (default: 5)"
+     - Use this value instead of hardcoded 5 for low stock detection
+     - Display in inventory summary and filters
+   - **Field**: `{ name: 'lowStockThreshold', type: 'number', defaultValue: 5, min: 0 }`
+
+**Technical Details:**
+- Sold count: Aggregate from orders collection, sum `order.quantity` where `order.product === productId`
+- Remaining stock: Sum of `variant.stock` for all variants, or base product stock if no variants
+- Auto-draft: Set `isPrivate: true` when total stock reaches 0, triggers in beforeChange/afterChange hooks
+- Stock calculation: `const totalStock = product.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0;`
+- Order aggregation: Query orders filtered by vendor and product, group by productId, sum quantities
+- Variant handling: If order has size/color, count towards specific variant; otherwise count towards base product

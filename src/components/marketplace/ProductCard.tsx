@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, MessageSquare, Eye } from 'lucide-react';
+import { ShoppingCart, Eye } from 'lucide-react';
 import { useCartStore } from '@/stores/cart-store';
 import { toast } from 'sonner';
 import type { Product } from '@/payload-types';
@@ -18,7 +18,7 @@ interface ProductCardProps {
  * ProductCard Component
  * 
  * Larger product card for grid view display.
- * Shows product image, title, description, price, MOQ, category badge, and action buttons.
+ * Shows product image, title, description, price, MOQ, category badge, View Details and Add to Cart.
  * 
  * @param product - Product data from Payload
  */
@@ -139,10 +139,6 @@ export function ProductCard({ product }: ProductCardProps) {
               View Details
             </Button>
           </Link>
-          <Button variant="outline" className="flex-1" size="sm">
-            <MessageSquare className="w-4 h-4 mr-2" />
-            Request Quote
-          </Button>
           <Button 
             variant="default" 
             className="flex-1" 

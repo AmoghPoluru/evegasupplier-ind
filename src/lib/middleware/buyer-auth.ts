@@ -35,6 +35,7 @@ export async function getBuyerStatus(): Promise<BuyerStatus> {
     collection: 'buyers' as any,
     where: { user: { equals: user.id } },
     limit: 1,
+    depth: 1,
   });
 
   const buyer = buyersResult.docs[0] ?? null;

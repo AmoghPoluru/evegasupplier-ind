@@ -3,9 +3,16 @@ import { StatsCards } from './components/StatsCards';
 import { RecentOrdersWidget } from './components/RecentOrdersWidget';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import { BdoChatOpenLink } from '@/components/bdo/BdoChatOpenLink';
 
 export default async function BuyerDashboardPage() {
   const buyer = await requireBuyer();
+  const b =
+    buyer as {
+      companyName?: string;
+      bdo?: { id: string; name?: string | null; email?: string | null } | string | null;
+    };
+  const bdo = b.bdo && typeof b.bdo === 'object' ? b.bdo : null;
 
   return (
     <div>
@@ -15,6 +22,25 @@ export default async function BuyerDashboardPage() {
           Welcome back, {buyer.companyName || 'Buyer'}!
         </p>
       </div>
+
+      {bdo ? (
+        <Card className="mb-6 border-emerald-100 bg-emerald-50/40 dark:bg-emerald-950/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Your coordinator</CardTitle>
+            <CardDescription>Platform BDO contact for onboarding and support.</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-gray-700 space-y-1">
+            <p>
+              <span className="font-medium text-gray-900">Name:</span>{' '}
+              {bdo.name?.trim() || '—'}
+            </p>
+            <p>
+              <span className="font-medium text-gray-900">Email:</span>{' '}
+              {bdo.email?.trim() || '—'}
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <StatsCards buyerId={buyer.id} />
 
@@ -28,6 +54,7 @@ export default async function BuyerDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
+              <BdoChatOpenLink />
               <Link
                 href="/buyer/orders"
                 className="block text-sm text-blue-600 hover:underline"

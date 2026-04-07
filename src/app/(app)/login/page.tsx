@@ -57,7 +57,7 @@ export default function LoginPage() {
     try {
       await login(data.email, data.password);
       toast.success('Logged in successfully');
-      router.push('/');
+      // Post-login redirect is handled in useAuth (BDO → /bdo/dashboard, others → /)
     } catch (error: any) {
       toast.error(error?.message || 'Failed to login');
     }

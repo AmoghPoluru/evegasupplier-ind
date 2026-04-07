@@ -4,7 +4,7 @@ export const Buyers: CollectionConfig = {
   slug: 'buyers',
   admin: {
     useAsTitle: 'companyName',
-    defaultColumns: ['companyName', 'companyType', 'verifiedBuyer', 'createdAt'],
+    defaultColumns: ['companyName', 'user', 'bdo', 'companyType', 'verifiedBuyer', 'createdAt'],
     description: 'B2B buyer/company profiles',
   },
   access: {
@@ -31,6 +31,67 @@ export const Buyers: CollectionConfig = {
       unique: true,
       admin: {
         description: 'User account linked to this buyer profile',
+      },
+    },
+    {
+      name: 'bdo',
+      type: 'relationship',
+      relationTo: 'users',
+      filterOptions: {
+        role: { in: ['admin', 'bdo'] },
+      },
+      admin: {
+        description: 'Platform BDO (Business Development) coordinating this buyer.',
+      },
+      access: {
+        read: ({ req, doc }) => {
+          if (!req?.user) return false;
+          const role = (req.user as { role?: string }).role;
+          if (role === 'admin' || role === 'bdo') return true;
+          const uid = (req.user as { id: string }).id;
+          const ownerId =
+            typeof doc?.user === 'object' && doc?.user != null
+              ? (doc.user as { id: string }).id
+              : (doc?.user as string | undefined);
+          if (ownerId && ownerId === uid) return true;
+          const bdoId =
+            typeof doc?.bdo === 'object' && doc?.bdo != null
+              ? (doc.bdo as { id: string }).id
+              : (doc?.bdo as string | undefined);
+          if (bdoId && bdoId === uid) return true;
+          return false;
+        },
+        update: ({ req }) => (req.user as { role?: string } | undefined)?.role === 'admin',
+      },
+    },
+    {
+      name: 'bdoAssignedAt',
+      type: 'date',
+      admin: {
+        description: 'When the current BDO was assigned.',
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+      },
+      access: {
+        read: ({ req, doc }) => {
+          if (!req?.user) return false;
+          const role = (req.user as { role?: string }).role;
+          if (role === 'admin' || role === 'bdo') return true;
+          const uid = (req.user as { id: string }).id;
+          const ownerId =
+            typeof doc?.user === 'object' && doc?.user != null
+              ? (doc.user as { id: string }).id
+              : (doc?.user as string | undefined);
+          if (ownerId && ownerId === uid) return true;
+          const bdoId =
+            typeof doc?.bdo === 'object' && doc?.bdo != null
+              ? (doc.bdo as { id: string }).id
+              : (doc?.bdo as string | undefined);
+          if (bdoId && bdoId === uid) return true;
+          return false;
+        },
+        update: ({ req }) => (req.user as { role?: string } | undefined)?.role === 'admin',
       },
     },
     {
@@ -257,5 +318,64 @@ export const Buyers: CollectionConfig = {
       },
     },
   ],
+  hooks: {
+    beforeValidate: [
+      ({ data, operation }) => {
+        if (operation === 'create' && data && (data.user === undefined || data.user === null || data.user === '')) {
+          throw new Error('A buyer profile must be linked to a user (user field is required).');
+        }
+        return data;
+      },
+      async ({ data, req }) => {
+        if (!req?.payload || !data) return data;
+        const bdoRef = data.bdo;
+        if (bdoRef === undefined || bdoRef === null || bdoRef === '') return data;
+        const id = typeof bdoRef === 'string' ? bdoRef : (bdoRef as { id: string }).id;
+        const u = await req.payload.findByID({ collection: 'users', id });
+        const role = (u as { role?: string }).role;
+        if (role !== 'admin' && role !== 'bdo') {
+          throw new Error('BDO field must reference a user with role Admin or BDO.');
+        }
+        return data;
+      },
+    ],
+    beforeChange: [
+      async ({ data, req, originalDoc }) => {
+        if (!data) return data;
+        const isAdmin = (req.user as { role?: string } | undefined)?.role === 'admin';
+        const hasUser = !!req.user;
+        if (hasUser && !isAdmin) {
+          if (originalDoc) {
+            data.bdo = originalDoc.bdo;
+            data.bdoAssignedAt = originalDoc.bdoAssignedAt;
+          } else {
+            data.bdo = null;
+            data.bdoAssignedAt = null;
+          }
+        }
+        if (isAdmin && originalDoc) {
+          const oldBdo =
+            typeof originalDoc.bdo === 'object' && originalDoc.bdo != null
+              ? (originalDoc.bdo as { id: string }).id
+              : (originalDoc.bdo as string | null | undefined);
+          const newBdo =
+            typeof data.bdo === 'object' && data.bdo != null
+              ? (data.bdo as { id: string }).id
+              : (data.bdo as string | null | undefined);
+          if (oldBdo !== newBdo) {
+            if (newBdo) {
+              data.bdoAssignedAt = data.bdoAssignedAt ?? new Date().toISOString();
+            } else {
+              data.bdoAssignedAt = null;
+            }
+          }
+        }
+        if (isAdmin && !originalDoc && data.bdo) {
+          data.bdoAssignedAt = data.bdoAssignedAt ?? new Date().toISOString();
+        }
+        return data;
+      },
+    ],
+  },
   timestamps: true,
 };

@@ -1,10 +1,11 @@
 import type { CollectionConfig } from 'payload';
+import { getVendorMirrorFromUser } from '@/lib/sync-vendor-account-mirror';
 
 export const Vendors: CollectionConfig = {
   slug: 'vendors',
   admin: {
     useAsTitle: 'companyName',
-    defaultColumns: ['companyName', 'companyType', 'verifiedSupplier', 'createdAt'],
+    defaultColumns: ['companyName', 'user', 'bdo', 'accountEmail', 'companyType', 'verifiedSupplier', 'createdAt'],
     description: 'B2B supplier/vendor profiles',
   },
   access: {
@@ -32,6 +33,95 @@ export const Vendors: CollectionConfig = {
       unique: true,
       admin: {
         description: 'User account linked to this vendor profile',
+      },
+    },
+    // Denormalized from linked users — synced on save and when the user is updated (see hooks).
+    {
+      name: 'accountName',
+      type: 'text',
+      admin: {
+        description: 'Mirrors linked user name (synced from users collection).',
+      },
+    },
+    {
+      name: 'accountEmail',
+      type: 'email',
+      admin: {
+        description: 'Mirrors linked user email (synced from users collection).',
+      },
+    },
+    {
+      name: 'oauthProvider',
+      type: 'select',
+      options: [
+        { label: 'Email', value: 'email' },
+        { label: 'Google', value: 'google' },
+        { label: 'Facebook', value: 'facebook' },
+      ],
+      defaultValue: 'email',
+      admin: {
+        description: 'Mirrors linked user sign-in method (synced from users collection).',
+      },
+    },
+    {
+      name: 'bdo',
+      type: 'relationship',
+      relationTo: 'users',
+      filterOptions: {
+        role: { in: ['admin', 'bdo'] },
+      },
+      admin: {
+        description: 'Platform BDO (Business Development) coordinating this supplier.',
+      },
+      access: {
+        read: ({ req, doc }) => {
+          if (!req?.user) return false;
+          const role = (req.user as { role?: string }).role;
+          if (role === 'admin' || role === 'bdo') return true;
+          const uid = (req.user as { id: string }).id;
+          const ownerId =
+            typeof doc?.user === 'object' && doc?.user != null
+              ? (doc.user as { id: string }).id
+              : (doc?.user as string | undefined);
+          if (ownerId && ownerId === uid) return true;
+          const bdoId =
+            typeof doc?.bdo === 'object' && doc?.bdo != null
+              ? (doc.bdo as { id: string }).id
+              : (doc?.bdo as string | undefined);
+          if (bdoId && bdoId === uid) return true;
+          return false;
+        },
+        update: ({ req }) => (req.user as { role?: string } | undefined)?.role === 'admin',
+      },
+    },
+    {
+      name: 'bdoAssignedAt',
+      type: 'date',
+      admin: {
+        description: 'When the current BDO was assigned.',
+        date: {
+          pickerAppearance: 'dayAndTime',
+        },
+      },
+      access: {
+        read: ({ req, doc }) => {
+          if (!req?.user) return false;
+          const role = (req.user as { role?: string }).role;
+          if (role === 'admin' || role === 'bdo') return true;
+          const uid = (req.user as { id: string }).id;
+          const ownerId =
+            typeof doc?.user === 'object' && doc?.user != null
+              ? (doc.user as { id: string }).id
+              : (doc?.user as string | undefined);
+          if (ownerId && ownerId === uid) return true;
+          const bdoId =
+            typeof doc?.bdo === 'object' && doc?.bdo != null
+              ? (doc.bdo as { id: string }).id
+              : (doc?.bdo as string | undefined);
+          if (bdoId && bdoId === uid) return true;
+          return false;
+        },
+        update: ({ req }) => (req.user as { role?: string } | undefined)?.role === 'admin',
       },
     },
     {
@@ -436,5 +526,76 @@ export const Vendors: CollectionConfig = {
       },
     },
   ],
+  hooks: {
+    beforeValidate: [
+      ({ data, operation }) => {
+        if (operation === 'create' && data && (data.user === undefined || data.user === null || data.user === '')) {
+          throw new Error('A supplier profile must be linked to a user (user field is required).');
+        }
+        return data;
+      },
+      async ({ data, req }) => {
+        if (!req?.payload || !data) return data;
+        const bdoRef = data.bdo;
+        if (bdoRef === undefined || bdoRef === null || bdoRef === '') return data;
+        const id = typeof bdoRef === 'string' ? bdoRef : (bdoRef as { id: string }).id;
+        const u = await req.payload.findByID({ collection: 'users', id });
+        const role = (u as { role?: string }).role;
+        if (role !== 'admin' && role !== 'bdo') {
+          throw new Error('BDO field must reference a user with role Admin or BDO.');
+        }
+        return data;
+      },
+    ],
+    beforeChange: [
+      async ({ data, req, originalDoc }) => {
+        if (!data) return data;
+        const isAdmin = (req.user as { role?: string } | undefined)?.role === 'admin';
+        const hasUser = !!req.user;
+        if (hasUser && !isAdmin) {
+          if (originalDoc) {
+            data.bdo = originalDoc.bdo;
+            data.bdoAssignedAt = originalDoc.bdoAssignedAt;
+          } else {
+            data.bdo = null;
+            data.bdoAssignedAt = null;
+          }
+        }
+        if (isAdmin && originalDoc) {
+          const oldBdo =
+            typeof originalDoc.bdo === 'object' && originalDoc.bdo != null
+              ? (originalDoc.bdo as { id: string }).id
+              : (originalDoc.bdo as string | null | undefined);
+          const newBdo =
+            typeof data.bdo === 'object' && data.bdo != null
+              ? (data.bdo as { id: string }).id
+              : (data.bdo as string | null | undefined);
+          if (oldBdo !== newBdo) {
+            if (newBdo) {
+              data.bdoAssignedAt = data.bdoAssignedAt ?? new Date().toISOString();
+            } else {
+              data.bdoAssignedAt = null;
+            }
+          }
+        }
+        if (isAdmin && !originalDoc && data.bdo) {
+          data.bdoAssignedAt = data.bdoAssignedAt ?? new Date().toISOString();
+        }
+        if (!req?.payload) return data;
+        const userRef = data?.user ?? originalDoc?.user;
+        const userId =
+          typeof userRef === 'string' ? userRef : (userRef as { id?: string } | undefined)?.id;
+        if (!userId) return data;
+        const mirror = await getVendorMirrorFromUser(req.payload, userId);
+        if (!mirror) return data;
+        return {
+          ...data,
+          accountName: mirror.accountName,
+          accountEmail: mirror.accountEmail,
+          oauthProvider: mirror.oauthProvider,
+        };
+      },
+    ],
+  },
   timestamps: true,
 };

@@ -10,7 +10,6 @@ import {
   Loader2, 
   AlertCircle, 
   ShoppingCart, 
-  MessageSquare, 
   MapPin, 
   CheckCircle2, 
   Star,
@@ -605,16 +604,12 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             <div className="flex flex-col sm:flex-row gap-3">
               <Button 
                 size="lg" 
-                className="flex-1"
+                className="w-full sm:max-w-md"
                 onClick={handleAddToCart}
                 disabled={!product || quantity < 1 || (product.moq != null && quantity < product.moq)}
               >
                 <ShoppingCart className="w-5 h-5 mr-2" />
                 Add to Cart
-              </Button>
-              <Button variant="outline" size="lg" className="flex-1">
-                <MessageSquare className="w-5 h-5 mr-2" />
-                Request Quote
               </Button>
             </div>
 

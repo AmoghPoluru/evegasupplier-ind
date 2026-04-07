@@ -70,6 +70,7 @@ export interface Config {
     users: User;
     media: Media;
     vendors: Vendor;
+    buyers: Buyer;
     products: Product;
     rfqs: Rfq;
     quotes: Quote;
@@ -78,16 +79,24 @@ export interface Config {
     'sample-requests': SampleRequest;
     'product-catalogs': ProductCatalog;
     orders: Order;
+    'bdo-conversations': BdoConversation;
+    'bdo-chat-messages': BdoChatMessage;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
-  collectionsJoins: {};
+  collectionsJoins: {
+    users: {
+      supplierProfile: 'vendors';
+      buyerCompanyProfile: 'buyers';
+    };
+  };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     vendors: VendorsSelect<false> | VendorsSelect<true>;
+    buyers: BuyersSelect<false> | BuyersSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
     rfqs: RfqsSelect<false> | RfqsSelect<true>;
     quotes: QuotesSelect<false> | QuotesSelect<true>;
@@ -96,6 +105,8 @@ export interface Config {
     'sample-requests': SampleRequestsSelect<false> | SampleRequestsSelect<true>;
     'product-catalogs': ProductCatalogsSelect<false> | ProductCatalogsSelect<true>;
     orders: OrdersSelect<false> | OrdersSelect<true>;
+    'bdo-conversations': BdoConversationsSelect<false> | BdoConversationsSelect<true>;
+    'bdo-chat-messages': BdoChatMessagesSelect<false> | BdoChatMessagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -141,7 +152,7 @@ export interface UserAuthOperations {
 export interface User {
   id: string;
   name?: string | null;
-  role: 'user' | 'vendor' | 'buyer' | 'admin';
+  role: 'user' | 'vendor' | 'buyer' | 'admin' | 'bdo';
   /**
    * Authentication method used by this user
    */
@@ -154,6 +165,22 @@ export interface User {
    * User avatar URL (from OAuth or uploaded)
    */
   avatar?: string | null;
+  /**
+   * Supplier/vendor company profile where this user is the owner (vendors.user → this user). At most one per user.
+   */
+  supplierProfile?: {
+    docs?: (string | Vendor)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
+   * Buyer company profile where this user is the owner (buyers.user → this user). At most one per user.
+   */
+  buyerCompanyProfile?: {
+    docs?: (string | Buyer)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -173,62 +200,6 @@ export interface User {
   password?: string | null;
 }
 /**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media".
- */
-export interface Media {
-  id: string;
-  /**
-   * Alternative text for accessibility
-   */
-  alt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
-  sizes?: {
-    thumbnail?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-    card?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-    tablet?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-    desktop?: {
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      mimeType?: string | null;
-      filesize?: number | null;
-      filename?: string | null;
-    };
-  };
-}
-/**
  * B2B supplier/vendor profiles
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -240,6 +211,26 @@ export interface Vendor {
    * User account linked to this vendor profile
    */
   user: string | User;
+  /**
+   * Mirrors linked user name (synced from users collection).
+   */
+  accountName?: string | null;
+  /**
+   * Mirrors linked user email (synced from users collection).
+   */
+  accountEmail?: string | null;
+  /**
+   * Mirrors linked user sign-in method (synced from users collection).
+   */
+  oauthProvider?: ('email' | 'google' | 'facebook') | null;
+  /**
+   * Platform BDO (Business Development) coordinating this supplier.
+   */
+  bdo?: (string | null) | User;
+  /**
+   * When the current BDO was assigned.
+   */
+  bdoAssignedAt?: string | null;
   /**
    * Legal or trading name of the company
    */
@@ -405,6 +396,200 @@ export interface Vendor {
    * Shipping and logistics capabilities
    */
   shippingCapabilities?: string | null;
+  /**
+   * Vendor approval status
+   */
+  status?: ('pending' | 'approved' | 'rejected' | 'suspended') | null;
+  /**
+   * Active vendors can sell products. Vendors must be approved and active to appear in the marketplace.
+   */
+  isActive?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: string;
+  /**
+   * Alternative text for accessibility
+   */
+  alt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    tablet?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    desktop?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
+}
+/**
+ * B2B buyer/company profiles
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "buyers".
+ */
+export interface Buyer {
+  id: string;
+  /**
+   * User account linked to this buyer profile
+   */
+  user: string | User;
+  /**
+   * Platform BDO (Business Development) coordinating this buyer.
+   */
+  bdo?: (string | null) | User;
+  /**
+   * When the current BDO was assigned.
+   */
+  bdoAssignedAt?: string | null;
+  /**
+   * Legal or trading name of the company
+   */
+  companyName: string;
+  /**
+   * Type of business entity
+   */
+  companyType?: ('retailer' | 'wholesaler' | 'distributor' | 'manufacturer' | 'ecommerce' | 'other') | null;
+  /**
+   * Business registration number
+   */
+  businessRegistrationNumber?: string | null;
+  /**
+   * Tax identification number
+   */
+  taxId?: string | null;
+  /**
+   * Company website URL
+   */
+  companyWebsite?: string | null;
+  /**
+   * Annual purchase volume range
+   */
+  annualPurchaseVolume?: ('under_100k' | '100k_500k' | '500k_1m' | '1m_5m' | '5m_10m' | 'over_10m') | null;
+  /**
+   * Main business description
+   */
+  mainBusiness?: string | null;
+  /**
+   * Target markets served
+   */
+  targetMarkets?:
+    | {
+        market: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Platform-verified buyer
+   */
+  verifiedBuyer?: boolean | null;
+  /**
+   * Preferred payment terms
+   */
+  preferredPaymentTerms?:
+    | {
+        term: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Shipping preferences
+   */
+  shippingPreferences?:
+    | {
+        preference: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Company address
+   */
+  companyAddress?: string | null;
+  /**
+   * Company phone number
+   */
+  companyPhone?: string | null;
+  /**
+   * Company email address
+   */
+  companyEmail?: string | null;
+  /**
+   * Company logo
+   */
+  companyLogo?: (string | null) | Media;
+  /**
+   * Company description
+   */
+  companyDescription?: string | null;
+  /**
+   * Number of employees
+   */
+  numberOfEmployees?: ('1_10' | '11_50' | '51_200' | '201_500' | '501_1000' | 'over_1000') | null;
+  /**
+   * Year the company was established
+   */
+  yearEstablished?: number | null;
+  /**
+   * Business license document
+   */
+  businessLicense?: (string | null) | Media;
+  /**
+   * Tax documents
+   */
+  taxDocuments?: (string | Media)[] | null;
+  /**
+   * Verification status
+   */
+  verificationStatus?: ('pending' | 'verified' | 'rejected') | null;
+  /**
+   * Verification documents
+   */
+  verificationDocuments?: (string | Media)[] | null;
+  /**
+   * Archive this buyer profile
+   */
+  isArchived?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -601,6 +786,22 @@ export interface Rfq {
    * Make this RFQ visible to all vendors
    */
   isPublic?: boolean | null;
+  /**
+   * Product specifications
+   */
+  specifications?:
+    | {
+        name: string;
+        value: string;
+        unit?: string | null;
+        notes?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Reference images for product specifications
+   */
+  specificationImages?: (string | Media)[] | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -973,6 +1174,62 @@ export interface Order {
         | 'disputed'
       )
     | null;
+  /**
+   * Customer phone number for order contact
+   */
+  phoneNumber: string;
+  /**
+   * Shipping address for this order
+   */
+  shippingAddress: {
+    fullName: string;
+    street: string;
+    city: string;
+    state: string;
+    zipcode: string;
+    country?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * BDO chat threads (buyer or vendor profile ↔ assigned BDO)
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bdo-conversations".
+ */
+export interface BdoConversation {
+  id: string;
+  profileKind: 'buyer' | 'vendor';
+  buyer?: (string | null) | Buyer;
+  vendor?: (string | null) | Vendor;
+  /**
+   * Assigned BDO (platform staff)
+   */
+  bdo: string | User;
+  /**
+   * Buyer or vendor owner login (buyers.user / vendors.user)
+   */
+  ownerUser: string | User;
+  lastMessageAt?: string | null;
+  status: 'open' | 'archived';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Messages within BDO conversations
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bdo-chat-messages".
+ */
+export interface BdoChatMessage {
+  id: string;
+  conversation: string | BdoConversation;
+  sender: string | User;
+  body: string;
+  kind?: ('user' | 'system' | 'ai') | null;
+  attachments?: (string | Media)[] | null;
+  readAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1013,6 +1270,10 @@ export interface PayloadLockedDocument {
         value: string | Vendor;
       } | null)
     | ({
+        relationTo: 'buyers';
+        value: string | Buyer;
+      } | null)
+    | ({
         relationTo: 'products';
         value: string | Product;
       } | null)
@@ -1043,6 +1304,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'orders';
         value: string | Order;
+      } | null)
+    | ({
+        relationTo: 'bdo-conversations';
+        value: string | BdoConversation;
+      } | null)
+    | ({
+        relationTo: 'bdo-chat-messages';
+        value: string | BdoChatMessage;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1096,6 +1365,8 @@ export interface UsersSelect<T extends boolean = true> {
   oauthProvider?: T;
   oauthId?: T;
   avatar?: T;
+  supplierProfile?: T;
+  buyerCompanyProfile?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -1181,6 +1452,11 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface VendorsSelect<T extends boolean = true> {
   user?: T;
+  accountName?: T;
+  accountEmail?: T;
+  oauthProvider?: T;
+  bdo?: T;
+  bdoAssignedAt?: T;
   companyName?: T;
   companyType?: T;
   yearEstablished?: T;
@@ -1247,6 +1523,57 @@ export interface VendorsSelect<T extends boolean = true> {
   rndCapability?: T;
   warehouseInformation?: T;
   shippingCapabilities?: T;
+  status?: T;
+  isActive?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "buyers_select".
+ */
+export interface BuyersSelect<T extends boolean = true> {
+  user?: T;
+  bdo?: T;
+  bdoAssignedAt?: T;
+  companyName?: T;
+  companyType?: T;
+  businessRegistrationNumber?: T;
+  taxId?: T;
+  companyWebsite?: T;
+  annualPurchaseVolume?: T;
+  mainBusiness?: T;
+  targetMarkets?:
+    | T
+    | {
+        market?: T;
+        id?: T;
+      };
+  verifiedBuyer?: T;
+  preferredPaymentTerms?:
+    | T
+    | {
+        term?: T;
+        id?: T;
+      };
+  shippingPreferences?:
+    | T
+    | {
+        preference?: T;
+        id?: T;
+      };
+  companyAddress?: T;
+  companyPhone?: T;
+  companyEmail?: T;
+  companyLogo?: T;
+  companyDescription?: T;
+  numberOfEmployees?: T;
+  yearEstablished?: T;
+  businessLicense?: T;
+  taxDocuments?: T;
+  verificationStatus?: T;
+  verificationDocuments?: T;
+  isArchived?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1335,6 +1662,16 @@ export interface RfqsSelect<T extends boolean = true> {
   selectedQuote?: T;
   expiryDate?: T;
   isPublic?: T;
+  specifications?:
+    | T
+    | {
+        name?: T;
+        value?: T;
+        unit?: T;
+        notes?: T;
+        id?: T;
+      };
+  specificationImages?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1488,6 +1825,46 @@ export interface OrdersSelect<T extends boolean = true> {
   invoiceNumber?: T;
   poNumber?: T;
   status?: T;
+  phoneNumber?: T;
+  shippingAddress?:
+    | T
+    | {
+        fullName?: T;
+        street?: T;
+        city?: T;
+        state?: T;
+        zipcode?: T;
+        country?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bdo-conversations_select".
+ */
+export interface BdoConversationsSelect<T extends boolean = true> {
+  profileKind?: T;
+  buyer?: T;
+  vendor?: T;
+  bdo?: T;
+  ownerUser?: T;
+  lastMessageAt?: T;
+  status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bdo-chat-messages_select".
+ */
+export interface BdoChatMessagesSelect<T extends boolean = true> {
+  conversation?: T;
+  sender?: T;
+  body?: T;
+  kind?: T;
+  attachments?: T;
+  readAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

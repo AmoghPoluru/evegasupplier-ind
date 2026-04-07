@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload';
+import { syncAllVendorProfilesForUser } from '@/lib/sync-vendor-account-mirror';
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -19,6 +20,7 @@ export const Users: CollectionConfig = {
         { label: 'Vendor', value: 'vendor' },
         { label: 'Buyer', value: 'buyer' },
         { label: 'Admin', value: 'admin' },
+        { label: 'BDO', value: 'bdo' },
       ],
       defaultValue: 'user',
       required: true,
@@ -49,6 +51,27 @@ export const Users: CollectionConfig = {
       type: 'text',
       admin: {
         description: 'User avatar URL (from OAuth or uploaded)',
+      },
+    },
+    // Inverse links: every vendor/buyer profile stores `user`; these joins surface them on the user record in admin.
+    {
+      name: 'supplierProfile',
+      type: 'join',
+      collection: 'vendors',
+      on: 'user',
+      admin: {
+        description:
+          'Supplier/vendor company profile where this user is the owner (vendors.user → this user). At most one per user.',
+      },
+    },
+    {
+      name: 'buyerCompanyProfile',
+      type: 'join',
+      collection: 'buyers',
+      on: 'user',
+      admin: {
+        description:
+          'Buyer company profile where this user is the owner (buyers.user → this user). At most one per user.',
       },
     },
   ],
@@ -105,6 +128,22 @@ export const Users: CollectionConfig = {
         if (operation === 'update') {
           console.log(`User updated: ${doc.email}`);
         }
+        return doc;
+      },
+      async ({ doc, req }) => {
+        if (!req?.payload) return doc;
+        const u = doc as {
+          id?: string;
+          name?: string | null;
+          email?: string | null;
+          oauthProvider?: string | null;
+        };
+        if (!u.id) return doc;
+        await syncAllVendorProfilesForUser(req.payload, u.id, {
+          name: u.name,
+          email: u.email,
+          oauthProvider: u.oauthProvider,
+        });
         return doc;
       },
     ],

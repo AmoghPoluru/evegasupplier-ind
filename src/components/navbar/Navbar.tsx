@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartStore } from '@/stores/cart-store';
 import { CartDrawer } from '@/components/cart/CartDrawer';
-import { ShoppingCart, Store, Search, X, Shield } from 'lucide-react';
+import { ShoppingCart, Store, Search, X, Shield, MessageSquare } from 'lucide-react';
 import { trpc } from '@/trpc/client';
 import { checkIfAdmin } from '@/lib/auth/admin-check';
 import { ProfileDropdown } from './ProfileDropdown';
@@ -35,12 +35,10 @@ export function Navbar() {
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
   
   // Get session directly to check admin status
-  const { data: session, isLoading: sessionLoading } = trpc.auth.session.useQuery();
+  const { data: session } = trpc.auth.session.useQuery();
   const sessionUser = session?.user;
-  
-  // Check admin status - check both role field and direct property access
-  const userRole = sessionUser ? ((sessionUser as any).role || (sessionUser as any)?.role) : null;
   const isAdmin = sessionUser ? checkIfAdmin(sessionUser as any) : false;
+  const isBdo = (sessionUser as { role?: string } | undefined)?.role === 'bdo';
   
   // Track if component has mounted to prevent hydration mismatch
   const [hasMounted, setHasMounted] = useState(false);
@@ -48,21 +46,6 @@ export function Navbar() {
   useEffect(() => {
     setHasMounted(true);
   }, []);
-  
-  // Debug: Log admin status (remove in production)
-  useEffect(() => {
-    if (sessionUser && hasMounted) {
-      console.log('🔍 Navbar Debug:');
-      console.log('  - User ID:', sessionUser.id);
-      console.log('  - User Email:', (sessionUser as any).email);
-      console.log('  - User Role:', userRole);
-      console.log('  - User Object:', sessionUser);
-      console.log('  - Is Admin Check Result:', isAdmin);
-      console.log('  - checkIfAdmin function result:', checkIfAdmin(sessionUser as any));
-    } else if (!sessionLoading && hasMounted) {
-      console.log('🔍 Navbar Debug: No user in session');
-    }
-  }, [sessionUser, isAdmin, userRole, sessionLoading, hasMounted]);
 
   // Update cart count after mount to avoid hydration mismatch
   useEffect(() => {
@@ -121,22 +104,33 @@ export function Navbar() {
       .slice(0, 2);
   };
 
+  const homeHref =
+    hasMounted && isBdo && !isAdmin ? '/bdo/dashboard' : '/';
+
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        {/* Logo/Brand */}
-        <Link href="/" className="flex items-center space-x-2">
+        {/* Logo/Brand — BDO-only staff land on coordinator dashboard */}
+        <Link href={homeHref} className="flex items-center space-x-2">
           <span className="text-xl font-bold">EvegaSupply</span>
         </Link>
 
         {/* Navigation Links - Center */}
         <div className="hidden md:flex items-center space-x-6">
           <Link
-            href="/"
+            href={homeHref}
             className="text-sm font-medium transition-colors hover:text-primary"
           >
             Home
           </Link>
+          {hasMounted && isBdo && !isAdmin && (
+            <Link
+              href="/?browse=1"
+              className="text-sm font-medium transition-colors hover:text-primary"
+            >
+              Marketplace
+            </Link>
+          )}
           <Link
             href="/about"
             className="text-sm font-medium transition-colors hover:text-primary"
@@ -152,6 +146,16 @@ export function Navbar() {
             >
               <Shield className="w-4 h-4" />
               Admin Dashboard
+            </Link>
+          )}
+
+          {hasMounted && (isBdo || isAdmin) && (
+            <Link
+              href="/bdo/dashboard"
+              className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary text-emerald-700"
+            >
+              <MessageSquare className="w-4 h-4" />
+              BDO dashboard
             </Link>
           )}
           

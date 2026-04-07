@@ -35,6 +35,7 @@ export async function getVendorStatus(): Promise<VendorStatus> {
     collection: 'vendors',
     where: { user: { equals: user.id } },
     limit: 1,
+    depth: 1,
   });
 
   const vendor = vendorsResult.docs[0] ?? null;

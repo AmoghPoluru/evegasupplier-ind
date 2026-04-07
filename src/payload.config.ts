@@ -17,6 +17,8 @@ import { Messages } from './collections/Messages';
 import { SampleRequests } from './collections/SampleRequests';
 import { ProductCatalogs } from './collections/ProductCatalogs';
 import { Orders } from './collections/Orders';
+import { BdoConversations } from './collections/BdoConversations';
+import { BdoChatMessages } from './collections/BdoChatMessages';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -41,6 +43,8 @@ export default buildConfig({
     SampleRequests,
     ProductCatalogs,
     Orders,
+    BdoConversations,
+    BdoChatMessages,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',

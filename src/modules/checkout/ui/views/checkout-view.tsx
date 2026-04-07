@@ -28,9 +28,14 @@ export function CheckoutView() {
 
   const createOrder = trpc.checkout.createOrder.useMutation({
     onSuccess: (data) => {
-      toast.success('Order placed! Please contact supplier to complete payment.');
+      const n = data.orderIds.length;
+      toast.success(
+        n > 1
+          ? `${n} orders placed (one per supplier). Payment is coordinated manually with each supplier.`
+          : 'Order placed! Please contact the supplier to complete payment.',
+      );
       clearCart();
-      router.push(`/buyer/orders/${data.orderId}?payment=pending`);
+      router.push('/');
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to place order. Please try again.');

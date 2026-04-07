@@ -15,19 +15,10 @@ export const checkoutRouter = createTRPCRouter({
         collection: 'products',
         depth: 2,
         where: {
-          and: [
-            {
-              id: {
-                in: input.ids,
-              },
-            },
-            {
-              isArchived: {
-                not_equals: true,
-              },
-            },
-          ],
-        } as any,
+          id: {
+            in: input.ids,
+          },
+        },
       });
 
       return {
@@ -70,152 +61,131 @@ export const checkoutRouter = createTRPCRouter({
         });
       }
 
-      // Get buyer profile
-      const buyersResult = await ctx.payload.find({
-        collection: 'buyers' as any,
-        where: { user: { equals: user.id } },
-        limit: 1,
-      });
-
-      const buyer = buyersResult.docs[0];
-      if (!buyer) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Buyer profile not found. Please complete your buyer registration.',
-        });
-      }
-
-      // Validate all products exist and are not archived
-      const productIds = input.cartItems.map((item) => item.productId);
+      // Validate all products exist (Products collection has no isArchived field in schema)
+      const uniqueProductIds = [...new Set(input.cartItems.map((item) => item.productId))];
       const products = await ctx.payload.find({
         collection: 'products',
         depth: 2,
         where: {
-          and: [
-            {
-              id: {
-                in: productIds,
-              },
-            },
-            {
-              isArchived: {
-                not_equals: true,
-              },
-            },
-          ],
-        } as any,
+          id: {
+            in: uniqueProductIds,
+          },
+        },
       });
 
-      if (products.totalDocs !== productIds.length) {
+      if (products.totalDocs !== uniqueProductIds.length) {
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Some products not found or are no longer available',
         });
       }
 
-      // Validate all products are from the same supplier
-      const suppliers = new Set(
-        products.docs
-          .map((p: any) => {
-            const supplier = p.supplier;
-            return typeof supplier === 'string' ? supplier : supplier?.id;
-          })
-          .filter(Boolean)
+      const productById = new Map(
+        products.docs.map((p: any) => [p.id as string, p]),
       );
 
-      if (suppliers.size === 0) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'Products must have a supplier assigned',
-        });
+      function supplierIdForProduct(p: any): string | null {
+        const s = p?.supplier;
+        if (!s) return null;
+        return typeof s === 'string' ? s : s?.id ?? null;
       }
 
-      if (suppliers.size > 1) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'All items in cart must be from the same supplier. Please complete your current order or remove items from different suppliers.',
-        });
-      }
-
-      // Get supplier
-      const supplierId = Array.from(suppliers)[0] as string;
-      const supplier = await ctx.payload.findByID({
-        collection: 'vendors',
-        id: supplierId,
-        depth: 0,
-      });
-
-      if (!supplier) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Supplier not found',
-        });
-      }
-
-      // Calculate order totals
-      let subtotal = 0;
-      const orderProducts: Array<{
-        product: string;
-        quantity: number;
-        unitPrice: number;
-        totalPrice: number;
-      }> = [];
-
+      // Group line items by supplier — multiple vendors ⇒ multiple orders (manual fulfillment)
+      const itemsBySupplier = new Map<string, typeof input.cartItems>();
       for (const cartItem of input.cartItems) {
-        const product = products.docs.find((p: any) => p.id === cartItem.productId);
+        const product = productById.get(cartItem.productId);
         if (!product) {
           throw new TRPCError({
             code: 'NOT_FOUND',
             message: `Product ${cartItem.productId} not found`,
           });
         }
-
-        const itemTotal = cartItem.unitPrice * cartItem.quantity;
-        subtotal += itemTotal;
-
-        orderProducts.push({
-          product: product.id,
-          quantity: cartItem.quantity,
-          unitPrice: cartItem.unitPrice,
-          totalPrice: itemTotal,
-        });
+        const supplierId = supplierIdForProduct(product);
+        if (!supplierId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Products must have a supplier assigned',
+          });
+        }
+        const list = itemsBySupplier.get(supplierId) ?? [];
+        list.push(cartItem);
+        itemsBySupplier.set(supplierId, list);
       }
 
-      // Calculate shipping (simplified - can be enhanced later)
-      const shipping = subtotal >= 75 ? 0 : 2.99; // Free shipping over $75
-      const tax = subtotal * 0.08; // 8% tax (placeholder)
-      const totalAmount = subtotal + shipping + tax;
+      const orderIds: string[] = [];
 
-      // Create order
-      const order = await ctx.payload.create({
-        collection: 'orders',
-        data: {
-          buyer: user.id,
-          supplier: supplierId,
-          orderType: 'standard',
-          products: orderProducts.map((op) => ({
-            product: op.product,
-            quantity: op.quantity,
-            unitPrice: op.unitPrice,
-            totalPrice: op.totalPrice,
-          })),
-          totalAmount,
-          status: 'pending',
-          phoneNumber: input.phoneNumber,
-          shippingAddress: {
-            fullName: input.shippingAddress.fullName,
-            street: input.shippingAddress.street,
-            city: input.shippingAddress.city,
-            state: input.shippingAddress.state,
-            zipcode: input.shippingAddress.zipcode,
-            country: input.shippingAddress.country || 'United States',
-          },
-        } as any,
-      });
+      for (const [supplierId, cartItems] of itemsBySupplier) {
+        const vendor = await ctx.payload.findByID({
+          collection: 'vendors',
+          id: supplierId,
+          depth: 0,
+        });
+
+        if (!vendor) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Supplier not found',
+          });
+        }
+
+        let subtotal = 0;
+        const orderProducts: Array<{
+          product: string;
+          quantity: number;
+          unitPrice: number;
+          totalPrice: number;
+        }> = [];
+
+        for (const cartItem of cartItems) {
+          const product = productById.get(cartItem.productId)!;
+          const itemTotal = cartItem.unitPrice * cartItem.quantity;
+          subtotal += itemTotal;
+          orderProducts.push({
+            product: product.id,
+            quantity: cartItem.quantity,
+            unitPrice: cartItem.unitPrice,
+            totalPrice: itemTotal,
+          });
+        }
+
+        const shipping = subtotal >= 75 ? 0 : 2.99;
+        const tax = subtotal * 0.08;
+        const totalAmount = subtotal + shipping + tax;
+
+        const order = await ctx.payload.create({
+          collection: 'orders',
+          data: {
+            buyer: user.id,
+            supplier: supplierId,
+            orderType: 'standard',
+            products: orderProducts.map((op) => ({
+              product: op.product,
+              quantity: op.quantity,
+              unitPrice: op.unitPrice,
+              totalPrice: op.totalPrice,
+            })),
+            totalAmount,
+            status: 'pending',
+            phoneNumber: input.phoneNumber,
+            shippingAddress: {
+              fullName: input.shippingAddress.fullName,
+              street: input.shippingAddress.street,
+              city: input.shippingAddress.city,
+              state: input.shippingAddress.state,
+              zipcode: input.shippingAddress.zipcode,
+              country: input.shippingAddress.country || 'United States',
+            },
+          } as any,
+        });
+
+        orderIds.push(order.id);
+      }
 
       return {
-        orderId: order.id,
-        orderNumber: (order as any).orderNumber || order.id,
+        orderIds,
+        /** First order id — useful for single-order UIs */
+        orderId: orderIds[0],
+        orderNumber: orderIds[0],
       };
     }),
 });
