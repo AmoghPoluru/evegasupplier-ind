@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { getPayload } from 'payload';
 import config from '@payload-config';
 import { uploadToBlob, deleteFromBlob } from '@/lib/vercel-blob-storage';
@@ -27,8 +26,7 @@ function vercelBlobObjectUrl(media: {
 export async function DELETE(req: NextRequest) {
   try {
     const payload = await getPayload({ config });
-    const headersList = await headers();
-    const session = await payload.auth({ headers: headersList });
+    const session = await payload.auth({ headers: req.headers });
 
     if (!session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -144,8 +142,7 @@ export async function DELETE(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const payload = await getPayload({ config });
-    const headersList = await headers();
-    const session = await payload.auth({ headers: headersList });
+    const session = await payload.auth({ headers: req.headers });
 
     if (!session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
