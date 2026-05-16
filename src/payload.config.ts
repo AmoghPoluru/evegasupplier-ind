@@ -23,6 +23,34 @@ import { BdoChatMessages } from './collections/BdoChatMessages';
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
+/** Payload compares `Origin` to `csrf` entries exactly — no trailing slash. */
+function normalizeOrigin(url: string): string {
+  return url.trim().replace(/\/+$/, '');
+}
+
+/**
+ * Cookie JWT is only accepted when `Origin` matches `csrf` (sanitizer appends `serverURL`).
+ * Wrong `NEXT_PUBLIC_APP_URL`, a trailing slash, or visiting a different host than `serverURL`
+ * breaks client POSTs (`/api/media`, tRPC) with 401 while SSR may still work.
+ */
+function resolvedServerURL(): string {
+  const primary =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXTAUTH_URL?.trim();
+  if (primary) return normalizeOrigin(primary);
+  if (process.env.VERCEL_URL?.trim()) {
+    return normalizeOrigin(`https://${process.env.VERCEL_URL}`);
+  }
+  return 'http://localhost:3000';
+}
+
+/** Extra allowed origins (comma-separated), e.g. alternate deployment URL + custom domain. */
+function extraCsrfOrigins(): string[] {
+  const raw = process.env.PAYLOAD_CSRF_ORIGINS?.trim();
+  if (!raw) return [];
+  return raw.split(',').map((s) => normalizeOrigin(s)).filter(Boolean);
+}
+
 export default buildConfig({
   admin: {
     user: Users.slug,
@@ -54,11 +82,9 @@ export default buildConfig({
   db: mongooseAdapter({
     url: process.env.DATABASE_URL || '',
   }),
-  // Absolute URLs for media and Payload features (same pattern as evega/)
-  serverURL:
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXTAUTH_URL ||
-    'http://localhost:3000',
+  // Exact-match CSRF list; `sanitize` also appends `serverURL`
+  csrf: extraCsrfOrigins(),
+  serverURL: resolvedServerURL(),
   sharp,
   // Email configuration will be added when @payloadcms/email-nodemailer is installed
   // email: nodemailerAdapter({ ... }),
