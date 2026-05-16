@@ -1,30 +1,29 @@
 import { initTRPC } from '@trpc/server';
+import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch';
 import { getPayload } from 'payload';
 import config from '@payload-config';
 import superjson from 'superjson';
 import { headers as getHeaders } from 'next/headers';
 
-import { cache } from 'react';
-
-export const createTRPCContext = cache(async () => {
-  /**
-   * @see: https://trpc.io/docs/server/context
-   * Creates the base context for tRPC calls
-   * The procedures will extend this context with payload, headers, etc.
-   */
+export async function createTRPCContext(
+  opts?: FetchCreateContextFnOptions,
+): Promise<{
+  payload: Awaited<ReturnType<typeof getPayload>>;
+  headers: Headers;
+}> {
   const payload = await getPayload({ config });
-  const headers = await getHeaders();
-  
+  /** Route handler: actual Request headers (cookies). RSC/createCaller: `opts` omitted → Next headers(). */
+  const headers =
+    opts?.req?.headers ??
+    ((await getHeaders()) as unknown as Headers);
+
   return {
     payload,
     headers,
   };
-});
+}
 
-// Avoid exporting the entire t-object
-// since it's not very descriptive.
-// For instance, the use of a t variable
-// is common in i18n libraries.
+// Avoid exporting the entire t-object; the use of a t variable is common in i18n libraries.
 const t = initTRPC.context<typeof createTRPCContext>().create({
   /**
    * @see https://trpc.io/docs/server/data-transformers
