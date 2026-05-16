@@ -28,6 +28,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useCartStore } from '@/stores/cart-store';
+import {
+  productImageGalleryUrls,
+  productImagesForCart,
+  nextImageUnoptimizedForSrc,
+} from '@/lib/media-url';
 
 interface ProductDetailPageProps {
   params: Promise<{
@@ -225,27 +230,12 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       return;
     }
 
-    // Get image URLs - reuse the same logic from the component
-    const getImageUrls = () => {
-      if (!product.images || !Array.isArray(product.images) || product.images.length === 0) {
-        return [];
-      }
-      return product.images.map((img: any) => {
-        if (typeof img === 'string') return { id: '', url: img };
-        if (typeof img === 'object' && img !== null && 'url' in img) {
-          return { id: img.id || '', url: img.url || '' };
-        }
-        return { id: '', url: '' };
-      }).filter((img: any) => img.url);
-    };
-
-    // Ensure we have valid product data
     const productData = {
       id: product.id,
       title: product.title || 'Product',
       unitPrice: unitPrice,
       moq: product.moq || 1,
-      images: getImageUrls(),
+      images: productImagesForCart(product.images),
     };
 
     try {
@@ -291,22 +281,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     );
   }
 
-  // Get product images
-  const getImageUrls = () => {
-    if (!product.images || !Array.isArray(product.images) || product.images.length === 0) {
-      return [];
-    }
-    return product.images.map((img) => {
-      if (typeof img === 'string') return img;
-      if (typeof img === 'object' && img !== null && 'url' in img) {
-        return (img as any).url;
-      }
-      return null;
-    }).filter(Boolean) as string[];
-  };
+  const imageUrls = productImageGalleryUrls(product.images);
 
-  const imageUrls = getImageUrls();
-  const mainImage = imageUrls[selectedImageIndex] || imageUrls[0];
+  const selectedImageUrl = imageUrls[selectedImageIndex] || imageUrls[0];
 
   // Get supplier info
   const supplier = typeof product.supplier === 'object' && product.supplier !== null 
@@ -341,12 +318,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             <Card className="border-2 border-blue-100/50 dark:border-blue-900/30 mb-4">
               <CardContent className="p-0">
                 <div className="w-full aspect-square rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-2 border-blue-100 dark:border-blue-900/50 overflow-hidden flex items-center justify-center relative">
-                  {mainImage ? (
+                  {selectedImageUrl ? (
                     <Image
-                      src={mainImage}
+                      src={selectedImageUrl}
                       alt={product.title || 'Product'}
                       width={800}
                       height={800}
+                      unoptimized={nextImageUnoptimizedForSrc(selectedImageUrl)}
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -359,7 +337,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             {/* Thumbnails */}
             {imageUrls.length > 1 && (
               <div className="flex gap-2 overflow-x-auto pb-2">
-                {imageUrls.map((url, index) => (
+                {imageUrls.map((galleryUrl, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImageIndex(index)}
@@ -371,10 +349,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   >
                     <div className="w-full h-full bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30">
                       <Image
-                        src={url}
+                        src={galleryUrl}
                         alt={`${product.title} ${index + 1}`}
                         width={80}
                         height={80}
+                        unoptimized={nextImageUnoptimizedForSrc(galleryUrl)}
                         className="w-full h-full object-cover"
                       />
                     </div>

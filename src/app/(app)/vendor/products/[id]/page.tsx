@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Edit, Trash2, Copy, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { productImageSrc, nextImageUnoptimizedForSrc } from '@/lib/media-url';
 
 export default async function ProductDetailPage({
   params,
@@ -38,13 +39,6 @@ export default async function ProductDetailPage({
     const images = product.images
       ? (Array.isArray(product.images) ? product.images : [])
       : [];
-
-    const getImageUrl = (img: any) => {
-      if (typeof img === 'string') return `/api/media/${img}`;
-      if (img?.url) return img.url;
-      if (img?.id) return `/api/media/${img.id}`;
-      return null;
-    };
 
     return (
       <div>
@@ -86,13 +80,14 @@ export default async function ProductDetailPage({
               {images.length > 0 ? (
                 <div className="grid grid-cols-2 gap-4">
                   {images.map((img: any, index: number) => {
-                    const imageUrl = getImageUrl(img);
+                    const imageUrl = productImageSrc(img);
                     return imageUrl ? (
                       <div key={index} className="aspect-square relative rounded-lg overflow-hidden border-2">
                         <Image
                           src={imageUrl}
                           alt={`Product image ${index + 1}`}
                           fill
+                          unoptimized={nextImageUnoptimizedForSrc(imageUrl)}
                           className="object-cover"
                         />
                       </div>

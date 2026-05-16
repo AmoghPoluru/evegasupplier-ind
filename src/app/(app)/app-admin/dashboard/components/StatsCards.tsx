@@ -1,17 +1,28 @@
-'use client';
+"use client";
 
-import { trpc } from '@/trpc/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, ShoppingCart, UserCircle, Package, DollarSign, AlertCircle } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { trpc } from "@/trpc/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Users,
+  ShoppingCart,
+  UserCircle,
+  Package,
+  DollarSign,
+  AlertCircle,
+} from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function StatsCards() {
-  const { data: stats, isLoading, error } = trpc.admin.dashboard.stats.useQuery();
+  const {
+    data: stats,
+    isLoading,
+    error,
+  } = trpc.admin.dashboard.stats.useQuery();
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {[...Array(6)].map((_, i) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4">
+        {[...Array(7)].map((_, i) => (
           <Card key={i}>
             <CardHeader className="pb-2">
               <Skeleton className="h-4 w-24" />
@@ -39,61 +50,71 @@ export function StatsCards() {
 
   const statCards = [
     {
-      title: 'Total Suppliers',
+      title: "Total Products",
+      value: stats.products.total,
+      icon: Package,
+      color: "text-orange-600",
+      bgColor: "bg-orange-50",
+      link: "/app-admin/products",
+    },
+    {
+      title: "Total Suppliers",
       value: stats.vendors.total,
       icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
     },
     {
-      title: 'Pending Approval',
+      title: "Pending Approval",
       value: stats.vendors.pending,
       icon: AlertCircle,
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-50',
-      link: '/app-admin/vendors/pending',
+      color: "text-yellow-600",
+      bgColor: "bg-yellow-50",
+      link: "/app-admin/vendors/pending",
     },
     {
-      title: 'Approved Suppliers',
+      title: "Approved Suppliers",
       value: stats.vendors.approved,
       icon: Users,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      color: "text-green-600",
+      bgColor: "bg-green-50",
     },
     {
-      title: 'Total Orders',
+      title: "Total Orders",
       value: stats.orders.total,
       icon: ShoppingCart,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
     },
     {
-      title: 'Total Buyers',
+      title: "Total Buyers",
       value: stats.buyers.total,
       icon: UserCircle,
-      color: 'text-indigo-600',
-      bgColor: 'bg-indigo-50',
+      color: "text-indigo-600",
+      bgColor: "bg-indigo-50",
     },
     {
-      title: 'Total Revenue',
+      title: "Total Revenue",
       value: `$${stats.revenue.toLocaleString()}`,
       icon: DollarSign,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-50",
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4">
       {statCards.map((stat) => {
         const Icon = stat.icon;
-        const CardWrapper = stat.link ? 'a' : 'div';
-        
+        const CardWrapper = stat.link ? "a" : "div";
+
         return (
           <CardWrapper
             key={stat.title}
             href={stat.link}
-            className={stat.link ? 'block hover:shadow-md transition-shadow' : 'block'}
+            className={
+              stat.link ? "block hover:shadow-md transition-shadow" : "block"
+            }
           >
             <Card>
               <CardHeader className="pb-2">
@@ -107,7 +128,9 @@ export function StatsCards() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {stat.value}
+                </div>
               </CardContent>
             </Card>
           </CardWrapper>

@@ -30,11 +30,17 @@ Create a `.env.local` file in your project root (if it doesn't exist) and add:
 ```env
 PAYLOAD_SECRET=your-super-secret-key-here-min-32-characters
 DATABASE_URL=mongodb://localhost:27017/evegasupply
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 **Important:**
 - `PAYLOAD_SECRET`: Generate a strong random string (minimum 32 characters). You can use: `openssl rand -base64 32`
 - `DATABASE_URL`: Your MongoDB connection string. For MongoDB Atlas, use: `mongodb+srv://username:password@cluster.mongodb.net/dbname`
+- `NEXT_PUBLIC_APP_URL`: Your app’s public origin (used for OAuth redirect URIs and Payload **`serverURL`**). Use `http://localhost:3000` in **`.env.local`**. On **Vercel → Project → Settings → Environment Variables**, set **`NEXT_PUBLIC_APP_URL`** for **Production** to your live URL, e.g. **`https://evegasupplier-ind.vercel.app`** (omit trailing slash unless your OAuth provider expects it—match exactly what you register in Google/Facebook).
+
+A fuller template (including optional **Vercel Blob** for production media uploads) lives in **`.env.example`** at the project root.
+
+**Vercel Blob (production uploads):** When using Vercel Blob for `media` (see `doc/TODO_2026-05-15.md`), set **`BLOB_READ_WRITE_TOKEN`** on the Vercel project (Storage → Blob). Same variable name as **`@vercel/blob`** / the **`evega`** repo. Do not commit the real token—set it only in Vercel env and `.env.local` for local testing.
 
 ## Step 3: Create Payload Configuration File
 

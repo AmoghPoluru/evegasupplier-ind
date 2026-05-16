@@ -414,6 +414,10 @@ export interface Vendor {
 export interface Media {
   id: string;
   /**
+   * Original public URL when file is hosted on Vercel Blob (Payload upload `url` may be rewritten to a local `/api/media/file/` path)
+   */
+  blobUrl?: string | null;
+  /**
    * Alternative text for accessibility
    */
   alt?: string | null;
@@ -614,6 +618,10 @@ export interface Product {
    */
   supplier: string | Vendor;
   /**
+   * Public URL for the real upstream supplier or product source. The linked Vendor is the platform “super supplier”.
+   */
+  actualSupplierUrl?: string | null;
+  /**
    * Minimum order quantity
    */
   moq?: number | null;
@@ -703,6 +711,10 @@ export interface Product {
    * Product category
    */
   category?: string | null;
+  /**
+   * Date an admin validated this product listing (optional). Clear in admin UI to unset.
+   */
+  validatedOn?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1212,6 +1224,14 @@ export interface BdoConversation {
    */
   ownerUser: string | User;
   lastMessageAt?: string | null;
+  /**
+   * User who sent the latest message (denormalized for BDO unread UI)
+   */
+  lastMessageSender?: (string | null) | User;
+  /**
+   * When the assigned BDO last opened this thread (for unread highlight)
+   */
+  bdoLastReadAt?: string | null;
   status: 'open' | 'archived';
   updatedAt: string;
   createdAt: string;
@@ -1389,6 +1409,7 @@ export interface UsersSelect<T extends boolean = true> {
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
+  blobUrl?: T;
   alt?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -1585,6 +1606,7 @@ export interface ProductsSelect<T extends boolean = true> {
   title?: T;
   description?: T;
   supplier?: T;
+  actualSupplierUrl?: T;
   moq?: T;
   bulkPricingTiers?:
     | T
@@ -1627,6 +1649,7 @@ export interface ProductsSelect<T extends boolean = true> {
   originCountry?: T;
   images?: T;
   category?: T;
+  validatedOn?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1850,6 +1873,8 @@ export interface BdoConversationsSelect<T extends boolean = true> {
   bdo?: T;
   ownerUser?: T;
   lastMessageAt?: T;
+  lastMessageSender?: T;
+  bdoLastReadAt?: T;
   status?: T;
   updatedAt?: T;
   createdAt?: T;

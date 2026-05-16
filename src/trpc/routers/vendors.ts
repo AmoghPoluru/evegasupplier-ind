@@ -1,7 +1,13 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { baseProcedure, createTRPCRouter } from '../init';
 import { getPayload } from 'payload';
 import config from '@payload-config';
+import {
+  buildVendorSelfServicePatch,
+  vendorSelfServiceProfileSchema,
+} from '@/lib/vendor-self-service-profile';
+import { hydrateProductImages } from '@/lib/hydrate-product-images';
 
 // Helper to get vendor ID from session
 async function getVendorIdFromSession(ctx: any): Promise<string | null> {
@@ -80,8 +86,60 @@ export const vendorsRouter = createTRPCRouter({
         collection: 'vendors',
         where: { user: { equals: input.userId } },
         limit: 1,
+        depth: 0,
       });
       return result.docs[0] ?? null;
+    }),
+
+  updateAccountSettings: baseProcedure
+    .input(vendorSelfServiceProfileSchema)
+    .mutation(async ({ ctx, input }) => {
+      const payload = ctx.payload ?? (await getPayload({ config }));
+      const { user } = await payload.auth({ headers: ctx.headers });
+      if (!user) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Not authenticated' });
+      }
+
+      const vendorsResult = await payload.find({
+        collection: 'vendors',
+        where: { user: { equals: user.id } },
+        limit: 1,
+      });
+      const vendor = vendorsResult.docs[0];
+      if (!vendor) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Vendor profile not found' });
+      }
+
+      await payload.update({
+        collection: 'users',
+        id: user.id,
+        data: { name: input.name },
+        overrideAccess: true,
+      });
+
+      const vendorPatch = buildVendorSelfServicePatch(input) as Record<string, unknown>;
+      const prevKp = (vendor as { keyPersonnel?: { name?: string; title?: string; email?: string }[] })
+        .keyPersonnel;
+      const nextKp = vendorPatch.keyPersonnel as { name: string; title?: string }[] | undefined;
+      if (Array.isArray(nextKp) && Array.isArray(prevKp)) {
+        vendorPatch.keyPersonnel = nextKp.map((row, i) => {
+          const email = prevKp[i]?.email;
+          return email ? { ...row, email } : row;
+        });
+      }
+
+      await payload.update({
+        collection: 'vendors',
+        id: vendor.id,
+        data: vendorPatch,
+      });
+
+      const updated = await payload.findByID({
+        collection: 'vendors',
+        id: vendor.id,
+        depth: 0,
+      });
+      return updated;
     }),
 
   marketplace: createTRPCRouter({
@@ -161,7 +219,13 @@ export const vendorsRouter = createTRPCRouter({
                 where: { supplier: { equals: vendor.id } },
                 limit: 8, // Limit to 8 products per vendor for main page
                 sort: '-createdAt',
+                depth: 2,
               });
+              await Promise.all(
+                productsResult.docs.map((p) =>
+                  hydrateProductImages(ctx.payload, p),
+                ),
+              );
               return {
                 ...vendor,
                 products: productsResult.docs,
@@ -203,7 +267,11 @@ export const vendorsRouter = createTRPCRouter({
             where: { supplier: { equals: vendor.id } },
             limit: 100,
             sort: '-createdAt',
+            depth: 2,
           });
+          await Promise.all(
+            productsResult.docs.map((p) => hydrateProductImages(ctx.payload, p)),
+          );
 
           return {
             ...vendor,
@@ -594,6 +662,14 @@ export const vendorsRouter = createTRPCRouter({
           unitPrice: z.number().min(0),
           moq: z.number().int().min(1),
           sku: z.string().optional(),
+          actualSupplierUrl: z
+            .string()
+            .max(2048)
+            .optional()
+            .refine(
+              (v) => !v || v.trim() === '' || /^https?:\/\/.+/i.test(v.trim()),
+              { message: 'Actual supplier URL must be empty or start with http:// or https://' },
+            ),
           images: z.array(z.string()).optional(),
           bulkPricingTiers: z.array(z.object({
             minQuantity: z.number(),
@@ -631,6 +707,14 @@ export const vendorsRouter = createTRPCRouter({
           unitPrice: z.number().min(0).optional(),
           moq: z.number().int().min(1).optional(),
           sku: z.string().optional(),
+          actualSupplierUrl: z
+            .string()
+            .max(2048)
+            .optional()
+            .refine(
+              (v) => !v || v.trim() === '' || /^https?:\/\/.+/i.test(v.trim()),
+              { message: 'Actual supplier URL must be empty or start with http:// or https://' },
+            ),
           images: z.array(z.string()).optional(),
           bulkPricingTiers: z.array(z.object({
             minQuantity: z.number(),

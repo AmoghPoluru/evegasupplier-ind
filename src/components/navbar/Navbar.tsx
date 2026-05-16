@@ -18,7 +18,15 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartStore } from '@/stores/cart-store';
 import { CartDrawer } from '@/components/cart/CartDrawer';
-import { ShoppingCart, Store, Search, X, Shield, MessageSquare } from 'lucide-react';
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Store,
+  Search,
+  X,
+  Shield,
+  MessageSquare,
+} from 'lucide-react';
 import { trpc } from '@/trpc/client';
 import { checkIfAdmin } from '@/lib/auth/admin-check';
 import { ProfileDropdown } from './ProfileDropdown';
@@ -38,7 +46,9 @@ export function Navbar() {
   const { data: session } = trpc.auth.session.useQuery();
   const sessionUser = session?.user;
   const isAdmin = sessionUser ? checkIfAdmin(sessionUser as any) : false;
-  const isBdo = (sessionUser as { role?: string } | undefined)?.role === 'bdo';
+  const sessionRole = (sessionUser as { role?: string } | undefined)?.role;
+  const isBdo = sessionRole === 'bdo';
+  const isVendorRole = sessionRole === 'vendor';
   
   // Track if component has mounted to prevent hydration mismatch
   const [hasMounted, setHasMounted] = useState(false);
@@ -105,7 +115,11 @@ export function Navbar() {
   };
 
   const homeHref =
-    hasMounted && isBdo && !isAdmin ? '/bdo/dashboard' : '/';
+    hasMounted && !isAdmin && isBdo
+      ? '/bdo/dashboard'
+      : hasMounted && !isAdmin && isVendorRole
+        ? '/vendor/dashboard'
+        : '/';
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -123,7 +137,7 @@ export function Navbar() {
           >
             Home
           </Link>
-          {hasMounted && isBdo && !isAdmin && (
+          {hasMounted && !isAdmin && (isBdo || isVendorRole) && (
             <Link
               href="/?browse=1"
               className="text-sm font-medium transition-colors hover:text-primary"
@@ -156,6 +170,16 @@ export function Navbar() {
             >
               <MessageSquare className="w-4 h-4" />
               BDO dashboard
+            </Link>
+          )}
+
+          {hasMounted && isVendorRole && !isAdmin && (
+            <Link
+              href="/vendor/dashboard"
+              className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary text-sky-700"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Supplier dashboard
             </Link>
           )}
           

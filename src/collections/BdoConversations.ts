@@ -82,6 +82,22 @@ export const BdoConversations: CollectionConfig = {
       },
     },
     {
+      name: 'lastMessageSender',
+      type: 'relationship',
+      relationTo: 'users',
+      admin: {
+        description: 'User who sent the latest message (denormalized for BDO unread UI)',
+      },
+    },
+    {
+      name: 'bdoLastReadAt',
+      type: 'date',
+      admin: {
+        description: 'When the assigned BDO last opened this thread (for unread highlight)',
+        date: { pickerAppearance: 'dayAndTime' },
+      },
+    },
+    {
       name: 'status',
       type: 'select',
       required: true,

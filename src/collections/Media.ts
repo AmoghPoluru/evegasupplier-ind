@@ -44,6 +44,15 @@ export const Media: CollectionConfig = {
   },
   fields: [
     {
+      name: 'blobUrl',
+      type: 'text',
+      admin: {
+        hidden: true,
+        description:
+          'Original public URL when file is hosted on Vercel Blob (Payload upload `url` may be rewritten to a local `/api/media/file/` path)',
+      },
+    },
+    {
       name: 'alt',
       type: 'text',
       label: 'Alt Text',

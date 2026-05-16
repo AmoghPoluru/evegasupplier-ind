@@ -3,7 +3,6 @@ import { StatsCards } from './components/StatsCards';
 import { RecentOrdersWidget } from './components/RecentOrdersWidget';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import { BdoChatOpenLink } from '@/components/bdo/BdoChatOpenLink';
 
 export default async function BuyerDashboardPage() {
   const buyer = await requireBuyer();
@@ -54,7 +53,6 @@ export default async function BuyerDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <BdoChatOpenLink />
               <Link
                 href="/buyer/orders"
                 className="block text-sm text-blue-600 hover:underline"

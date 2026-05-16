@@ -53,6 +53,27 @@ function assertConversationMember(
   throw new TRPCError({ code: 'FORBIDDEN', message: 'Not a participant in this conversation' });
 }
 
+/** True when the counterparty has messaged after the BDO last read (or last message is from them and not yet read). */
+function hasUnreadForBdo(
+  conv: {
+    lastMessageAt?: string | Date | null;
+    bdoLastReadAt?: string | Date | null;
+    lastMessageSender?: string | { id: string } | null;
+  },
+  assignedBdoUserId: string,
+  lastSenderIdResolved: string | null,
+): boolean {
+  if (!conv.lastMessageAt) return false;
+  const lastAt = new Date(conv.lastMessageAt).getTime();
+  const bdoRead = conv.bdoLastReadAt ? new Date(conv.bdoLastReadAt).getTime() : 0;
+  const lastSender =
+    lastSenderIdResolved ?? getId(conv.lastMessageSender ?? null);
+  if (lastSender && lastSender === String(assignedBdoUserId)) {
+    return false;
+  }
+  return lastAt > bdoRead;
+}
+
 export const chatRouter = createTRPCRouter({
   /** Idempotent get-or-create; use mutation so React Strict Mode / retries do not duplicate via GET semantics. */
   ensureConversation: baseProcedure
@@ -232,11 +253,41 @@ export const chatRouter = createTRPCRouter({
         id: input.conversationId,
         data: {
           lastMessageAt: new Date().toISOString(),
+          lastMessageSender: user.id,
         },
         overrideAccess: true,
       });
 
       return { message: msg };
+    }),
+
+  /** BDO (or admin) opened the thread — clears unread highlight for that coordinator. */
+  markBdoConversationRead: baseProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await requireUser(ctx);
+      if (user.role !== 'bdo' && user.role !== 'admin') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'BDO or admin only' });
+      }
+      const conv = await loadConversation(ctx.payload, input.conversationId);
+      const bdoId = getId(conv.bdo);
+      if (!bdoId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Conversation has no BDO' });
+      }
+      if (user.role !== 'admin' && String(user.id) !== bdoId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Not your conversation' });
+      }
+
+      await ctx.payload.update({
+        collection: 'bdo-conversations',
+        id: input.conversationId,
+        data: {
+          bdoLastReadAt: new Date().toISOString(),
+        },
+        overrideAccess: true,
+      });
+
+      return { ok: true as const };
     }),
 
   listConversationsForBdo: baseProcedure.query(async ({ ctx }) => {
@@ -257,6 +308,35 @@ export const chatRouter = createTRPCRouter({
       overrideAccess: true,
     });
 
-    return { conversations: result.docs };
+    const docs = result.docs as any[];
+    const missingLastSender = docs.filter((d) => d.lastMessageAt && !d.lastMessageSender);
+    const lastSenderByConvId: Record<string, string | null> = {};
+
+    await Promise.all(
+      missingLastSender.map(async (d) => {
+        const lm = await ctx.payload.find({
+          collection: 'bdo-chat-messages',
+          where: { conversation: { equals: d.id } },
+          sort: '-createdAt',
+          limit: 1,
+          depth: 0,
+          overrideAccess: true,
+        });
+        const doc = lm.docs[0] as { sender?: string | { id: string } } | undefined;
+        lastSenderByConvId[d.id] = doc ? getId(doc.sender) : null;
+      }),
+    );
+
+    const conversations = docs.map((conv) => {
+      const assignedBdoId = getId(conv.bdo);
+      const resolvedLastSender =
+        getId(conv.lastMessageSender ?? null) ?? lastSenderByConvId[conv.id] ?? null;
+      const hasUnreadForBdoFlag =
+        assignedBdoId != null &&
+        hasUnreadForBdo(conv, assignedBdoId, resolvedLastSender);
+      return { ...conv, hasUnreadForBdo: hasUnreadForBdoFlag };
+    });
+
+    return { conversations };
   }),
 });

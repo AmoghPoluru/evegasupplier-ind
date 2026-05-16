@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import type { Product } from '@/payload-types';
+import { firstProductImageUrl, nextImageUnoptimizedForSrc } from '@/lib/media-url';
 
 interface ProductCardHorizontalProps {
   product: Product;
@@ -18,22 +19,7 @@ interface ProductCardHorizontalProps {
  * @param product - Product data from Payload
  */
 export function ProductCardHorizontal({ product }: ProductCardHorizontalProps) {
-  // Get product image URL
-  const getImageUrl = () => {
-    if (!product.images || !Array.isArray(product.images) || product.images.length === 0) {
-      return null;
-    }
-    const firstImage = product.images[0];
-    if (typeof firstImage === 'string') {
-      return firstImage;
-    }
-    if (typeof firstImage === 'object' && firstImage !== null && 'url' in firstImage) {
-      return (firstImage as any).url;
-    }
-    return null;
-  };
-
-  const imageUrl = getImageUrl();
+  const imageUrl = firstProductImageUrl(product.images);
 
   return (
     <Link href={`/products/${product.id}`}>
@@ -46,6 +32,7 @@ export function ProductCardHorizontal({ product }: ProductCardHorizontalProps) {
               alt={product.title || 'Product'}
               width={192}
               height={192}
+              unoptimized={nextImageUnoptimizedForSrc(imageUrl)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (

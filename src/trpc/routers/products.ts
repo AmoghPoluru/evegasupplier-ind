@@ -1,3 +1,5 @@
+import { TRPCError } from '@trpc/server';
+import { hydrateProductImages } from '@/lib/hydrate-product-images';
 import { z } from 'zod';
 import { baseProcedure, createTRPCRouter } from '../init';
 
@@ -34,7 +36,7 @@ export const productsRouter = createTRPCRouter({
         limit: input.limit,
         page: input.page,
         sort: '-createdAt',
-        depth: 1, // Include supplier details
+        depth: 2, // supplier + nested relations; populate `images` → `media.url`
       });
 
       // Filter products to only include those from published suppliers
@@ -58,6 +60,12 @@ export const productsRouter = createTRPCRouter({
         );
       });
 
+      await Promise.all(
+        publishedProducts.map((product) =>
+          hydrateProductImages(ctx.payload, product),
+        ),
+      );
+
       return {
         products: publishedProducts,
         totalDocs: publishedProducts.length,
@@ -72,7 +80,19 @@ export const productsRouter = createTRPCRouter({
       const product = await ctx.payload.findByID({
         collection: 'products',
         id: input.id,
+        // Populate `images` → `media` (ids only would break storefront / next/image urls)
+        depth: 2,
       });
+
+      if (!product) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Product not found',
+        });
+      }
+
+      await hydrateProductImages(ctx.payload, product);
+
       return product;
     }),
 
@@ -122,7 +142,12 @@ export const productsRouter = createTRPCRouter({
         limit: input.limit,
         page: input.page,
         sort: '-createdAt',
+        depth: 2,
       });
+
+      await Promise.all(
+        result.docs.map((product) => hydrateProductImages(ctx.payload, product)),
+      );
 
       return {
         products: result.docs,

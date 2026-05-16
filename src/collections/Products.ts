@@ -4,7 +4,7 @@ export const Products: CollectionConfig = {
   slug: 'products',
   admin: {
     useAsTitle: 'title',
-    defaultColumns: ['title', 'supplier', 'unitPrice', 'moq', 'createdAt'],
+    defaultColumns: ['title', 'supplier', 'unitPrice', 'moq', 'validatedOn', 'createdAt'],
     description: 'B2B product catalog',
   },
   access: {
@@ -57,6 +57,14 @@ export const Products: CollectionConfig = {
       required: true,
       admin: {
         description: 'Vendor/supplier offering this product',
+      },
+    },
+    {
+      name: 'actualSupplierUrl',
+      type: 'text',
+      admin: {
+        description:
+          'Public URL for the real upstream supplier or product source. The linked Vendor is the platform “super supplier”.',
       },
     },
     // Task 124: moq - Minimum Order Quantity
@@ -233,6 +241,18 @@ export const Products: CollectionConfig = {
       type: 'text',
       admin: {
         description: 'Product category',
+      },
+    },
+    {
+      name: 'validatedOn',
+      type: 'date',
+      label: 'Validated on',
+      admin: {
+        description:
+          'Date an admin validated this product listing (optional). Clear in admin UI to unset.',
+        date: {
+          pickerAppearance: 'dayOnly',
+        },
       },
     },
   ],

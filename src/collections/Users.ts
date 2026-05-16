@@ -7,6 +7,10 @@ export const Users: CollectionConfig = {
   admin: {
     useAsTitle: 'email',
   },
+  /** Only `role: admin` may use Payload at `/admin`. BDO, buyers, vendors, etc. are denied. */
+  access: {
+    admin: ({ req: { user } }) => (user as { role?: string } | undefined)?.role === 'admin',
+  },
   fields: [
     {
       name: 'name',

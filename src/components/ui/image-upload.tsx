@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { X, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Upload } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 
@@ -32,7 +32,6 @@ export function ImageUpload({
       }
 
       setErrors({});
-      const newUploading: string[] = [];
       const newImages: string[] = [...value];
 
       for (const file of acceptedFiles) {
@@ -61,21 +60,46 @@ export function ImageUpload({
           const response = await fetch('/api/media', {
             method: 'POST',
             body: formData,
+            credentials: 'include',
           });
 
-          if (!response.ok) {
-            throw new Error('Upload failed');
+          let payloadUnknown: unknown;
+          try {
+            payloadUnknown = await response.json();
+          } catch {
+            payloadUnknown = null;
           }
 
-          const data = await response.json();
-          if (data.doc?.id) {
-            newImages.push(data.doc.id);
-            onChange(newImages);
+          if (!response.ok) {
+            const errMsg =
+              payloadUnknown &&
+              typeof payloadUnknown === 'object' &&
+              'error' in payloadUnknown &&
+              typeof (payloadUnknown as { error: unknown }).error === 'string' ?
+                (payloadUnknown as { error: string }).error
+              : `Upload failed (${response.status})`;
+            throw new Error(errMsg);
           }
-        } catch (error) {
+
+          const data = payloadUnknown as { doc?: { id?: unknown } } | null;
+          const rawId = data?.doc?.id;
+          const newId =
+            rawId !== undefined && rawId !== null ? String(rawId) : '';
+          if (newId) {
+            newImages.push(newId);
+            onChange([...newImages]);
+          } else if (!payloadUnknown ||
+              !(typeof payloadUnknown === 'object' && 'doc' in payloadUnknown)) {
+            throw new Error('Unexpected response from upload');
+          }
+        } catch (error: unknown) {
+          const msg =
+            error instanceof Error ?
+              error.message
+            : 'Upload failed. Please try again.';
           setErrors((prev) => ({
             ...prev,
-            [file.name]: 'Upload failed. Please try again.',
+            [file.name]: msg,
           }));
         } finally {
           setUploading((prev) => prev.filter((name) => name !== file.name));
@@ -139,18 +163,9 @@ export function ImageUpload({
             <div key={imageId} className="relative group">
               <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200 bg-gray-100">
                 <img
-                  src={`/media/${imageId}`}
+                  src={`/api/media/url/${encodeURIComponent(imageId)}`}
                   alt={`Product image ${index + 1}`}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // Try alternative URL format
-                    const img = e.target as HTMLImageElement;
-                    if (!img.src.includes('/api/')) {
-                      img.src = `/api/media/file/${imageId}`;
-                    } else {
-                      img.src = '/placeholder-image.png';
-                    }
-                  }}
                 />
               </div>
               {uploading.includes(imageId) ? (

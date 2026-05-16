@@ -45,6 +45,86 @@ Short-lived checklist for the current day. Move completed items to your main tas
   | **UI** | `BdoConversationList` + `bdo/dashboard/page.tsx`; layout header + nav (Conversations, Marketplace). |
   | **Navbar** | “BDO dashboard” → `/bdo/dashboard`. |
 
+- [x] **Supplier (vendor) — land on dashboard directly (mirror BDO behavior)** *(implemented 2026-04-05)*
+
+  **Product:** Logged-in **suppliers** who are **only** in the supplier portal context should be taken **straight to the vendor dashboard** after login and when hitting `/`, the same way **BDO-only** users go to `/bdo/dashboard`. Reduces extra clicks and keeps staff-like roles on their primary surface.
+
+  **Definition used:** **Session `role === 'vendor'`** (Payload `users.role`). Pending / suspended vendors still hit `/vendor/dashboard`; **existing** `requireVendor()` + redirects to `/vendor/pending` or `/vendor/suspended` apply unchanged.
+
+  **Implemented:**
+
+  | Piece | Detail |
+  |-------|--------|
+  | **Login** | `src/hooks/useAuth.ts` — after login: `bdo` → `/bdo/dashboard`, `vendor` → `/vendor/dashboard`, else `/`. |
+  | **Home `/`** | `src/app/(app)/page.tsx` — `role === 'vendor'` && `!browse` → `replace('/vendor/dashboard')` + loading copy; **`/?browse=1`** skips redirect (marketplace). |
+  | **Navbar** | `src/components/navbar/Navbar.tsx` — logo + Home → `/vendor/dashboard` when `role === 'vendor'` && !admin; **Marketplace** → `/?browse=1` for BDO or vendor. |
+  | **Vendor shell** | `src/app/(app)/vendor/components/VendorHeader.tsx` — **Marketplace** link → `/?browse=1`. |
+  | **OAuth** | Callbacks still land on `/`; client **HomeContent** sends `vendor` → `/vendor/dashboard` (same pattern as BDO). |
+
+  **Optional later:** Users with **`role === 'user'`** but a **vendor profile** only (no `vendor` role) — not auto-routed; would need `trpc.vendors.getByUser` or similar in `HomeContent`.
+
+- [x] **Supplier dashboard — explicit link in global navbar (parity with BDO)** *(implemented)*
+
+  **Product:** Today, **vendor** users get **`/vendor/dashboard`** via the **EvegaSupply** logo / **Home** in the top nav, but there is **no** dedicated nav item labeled like **“BDO dashboard”** for suppliers. Add a clear **Supplier** (or **Vendor**) **dashboard** entry in the main **`Navbar`** so suppliers can jump to their portal from anywhere on the marketplace (same discoverability as BDO).
+
+  **Implemented:**
+
+  | Piece | Detail |
+  |-------|--------|
+  | **File** | `src/components/navbar/Navbar.tsx` |
+  | **Visibility** | `hasMounted && isVendorRole && !isAdmin` |
+  | **Link** | **`href="/vendor/dashboard"`**, label **Supplier dashboard**, icon **`LayoutDashboard`**, **`text-sky-700`** (distinct from BDO emerald) |
+  | **Placement** | Center nav, after **BDO dashboard** block |
+
+  **Follow-up (optional):** Mobile — center links are **`hidden md:flex`**; small screens still lack a hamburger; vendors use logo **Home** to reach dashboard.
+
+- [x] **Vendor — Account settings (editable account + coordinator section)** *(implemented)*
+
+  **Product:** Suppliers should see **Account on file** (name, email, sign-in method) and **Your coordinator (BDO)** in a dedicated place — **Account settings** — and be able to **update** what they’re allowed to change. Add a clear **Account settings** entry (rename or supplement existing **Settings**): move the full **Account** and **BDO** cards off the main dashboard into this page (dashboard can keep a **one-line summary** + **Manage account settings** link).
+
+  **What can change (decide in product, then implement):**
+
+  | Area | Likely editable by supplier | Notes |
+  |------|-----------------------------|--------|
+  | **Display / contact on vendor profile** | `companyName`, `accountName`, `accountEmail` (mirror fields on **`vendors`**) | Today synced from **`users`** via `sync-vendor-account-mirror` / hooks; **editing** must either update **`users`** + re-sync mirror, or update **`vendors`** and allow drift from user — document one source of truth. |
+  | **Sign-in email / password** | **`users`** collection (Payload auth) | Use Payload `forgotPassword` / `changePassword` or custom tRPC endpoints; email change may need **verification** flow. |
+  | **OAuth** | Link/unlink Google/Facebook | If OAuth exists (`api/auth/*`), document whether suppliers can add password or switch provider. |
+  | **BDO coordinator** | Usually **read-only** for supplier | Assignment is **admin**; show name/email only, or **“Request change”** → support ticket / admin queue — **do not** let supplier pick arbitrary BDO without validation. |
+
+  **Implemented:**
+
+  | Piece | Detail |
+  |-------|--------|
+  | **tRPC** | `vendors.updateAccountSettings` — session auth; updates `companyName` on **`vendors`**, `name` / `email` on **`users`** (`overrideAccess`); duplicate email → `CONFLICT`. `vendors.getByUser` uses **`depth: 2`** for BDO on the settings page. |
+  | **UI** | `VendorAccountSettingsClient.tsx` — `react-hook-form` + zod; editable company/contact; sign-in and BDO read-only. |
+  | **Route** | `/vendor/settings` — **Account settings**; sidebar label **Account settings**; dashboard compact card + link. |
+  | **Sync** | **`Users` `afterChange`** still runs **`syncAllVendorProfilesForUser`** (no extra sync in the mutation). |
+
+  **Tasks (checklist):**
+
+  - [x] **Route & nav:** Use **`/vendor/settings`** (or rename to **`/vendor/account`**) — title **Account settings**; update **`VendorSidebar`** label from **Settings** → **Account settings** (or keep icon, change copy). Add **`Link`** from **`vendor/dashboard/page.tsx`** to this route.
+  - [x] **Move UI:** Relocate **Account on file** + **Your coordinator** cards from `vendor/dashboard/page.tsx` into a client or server section on the settings page (or shared components `VendorAccountCard`, `VendorBdoCard`).
+  - [x] **Forms:** `react-hook-form` + zod; **save** via tRPC **`vendors.updateAccountSettings`**. Enforce **access:** only **`vendors.user`** = session user.
+  - [ ] **User email/password:** Reuse or add **`auth.*`** mutations if present; otherwise Payload Local API + `generateAuthCookie` after email change. *(Partial: email via `updateAccountSettings`; password / verification flows not added.)*
+  - [x] **sync:** After updating **`users`**, ensure **`users` `afterChange`** still runs **`syncAllVendorProfilesForUser`** (see `src/lib/sync-vendor-account-mirror.ts`) so **`vendors`** mirror stays consistent.
+  - [x] **BDO block:** Read-only display; optional link **“Contact support”** if no self-service reassignment.
+
+  **Technical reference:**
+
+  | Area | Detail |
+  |------|--------|
+  | **Current UI** | `src/app/(app)/vendor/dashboard/page.tsx` — **Account on file** (`accountName`, `accountEmail`, `oauthProvider`), **Your coordinator** (`bdo` relationship). |
+  | **Placeholder** | `src/app/(app)/vendor/settings/page.tsx` — “coming soon”; replace with real forms. |
+  | **Schema** | `src/collections/Vendors.ts` — `accountName`, `accountEmail`, `companyName`, `bdo`, `user`; `src/collections/Users.ts` — auth fields. |
+  | **tRPC** | Extend `src/trpc/routers/vendors.ts` (or `auth.ts`) with validated update mutations; **never** expose raw `bdo` reassignment to vendor without admin rules. |
+  | **Types** | `npm run generate:types` after schema changes. |
+
+  **Definition of done:**
+
+  - [x] **Account settings** page lists account + BDO sections; supplier can **save** allowed fields (at minimum company/contact mirror fields or documented user fields).
+  - [x] Dashboard no longer duplicates long cards (or shows compact summary + link).
+  - [x] BDO assignment remains **admin-controlled** unless product explicitly adds a workflow.
+
 - [x] **Remove “Request Quote” UI (product marketplace)** *(done: `ProductCard.tsx`, `products/[productId]/page.tsx`)*
 
   **Why:** The buttons are non-functional stubs (no `onClick`, no navigation to RFQ flow). Removing them avoids misleading buyers until a real quote flow exists.

@@ -10,7 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { LogOut, User, Settings } from 'lucide-react';
+import Link from 'next/link';
+import { Home, LogOut, User, Settings } from 'lucide-react';
 import { trpc } from '@/trpc/client';
 
 export function VendorHeader() {
@@ -46,6 +47,13 @@ export function VendorHeader() {
           <h1 className="text-xl font-semibold">
             {vendor?.companyName || 'Vendor Dashboard'}
           </h1>
+          <Link
+            href="/?browse=1"
+            className="inline-flex items-center gap-2 rounded-md border border-gray-600 bg-gray-700/80 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 hover:border-gray-500"
+          >
+            <Home className="h-4 w-4" aria-hidden />
+            Home
+          </Link>
         </div>
 
         <div className="flex items-center gap-4">

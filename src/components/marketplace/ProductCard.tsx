@@ -9,6 +9,11 @@ import { ShoppingCart, Eye } from 'lucide-react';
 import { useCartStore } from '@/stores/cart-store';
 import { toast } from 'sonner';
 import type { Product } from '@/payload-types';
+import {
+  firstProductImageUrl,
+  nextImageUnoptimizedForSrc,
+  productImagesForCart,
+} from '@/lib/media-url';
 
 interface ProductCardProps {
   product: Product;
@@ -39,29 +44,14 @@ export function ProductCard({ product }: ProductCardProps) {
       title: product.title || 'Product',
       unitPrice: Number(product.unitPrice),
       moq: product.moq || 1,
-      images: product.images || [],
+      images: productImagesForCart(product.images),
     };
     
     addItem(productData as any, product.moq || 1);
     toast.success('Product added to cart');
   };
   
-  // Get product image URL
-  const getImageUrl = () => {
-    if (!product.images || !Array.isArray(product.images) || product.images.length === 0) {
-      return null;
-    }
-    const firstImage = product.images[0];
-    if (typeof firstImage === 'string') {
-      return firstImage;
-    }
-    if (typeof firstImage === 'object' && firstImage !== null && 'url' in firstImage) {
-      return (firstImage as any).url;
-    }
-    return null;
-  };
-
-  const imageUrl = getImageUrl();
+  const imageUrl = firstProductImageUrl(product.images);
 
   return (
     <Card className="flex flex-col h-full rounded-lg border-2 border-border hover:border-primary hover:shadow-lg transition-all bg-gradient-to-b from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-800/50 group">
@@ -74,6 +64,7 @@ export function ProductCard({ product }: ProductCardProps) {
               alt={product.title || 'Product'}
               width={400}
               height={400}
+              unoptimized={nextImageUnoptimizedForSrc(imageUrl)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (

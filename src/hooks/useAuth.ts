@@ -72,7 +72,9 @@ export function useAuth() {
       // Invalidate session query to refetch with new cookie
       await queryClient.invalidateQueries({ queryKey: [['auth', 'session']] });
       const role = (data.user as { role?: string } | undefined)?.role;
-      const next = role === 'bdo' ? '/bdo/dashboard' : '/';
+      let next = '/';
+      if (role === 'bdo') next = '/bdo/dashboard';
+      else if (role === 'vendor') next = '/vendor/dashboard';
       router.push(next);
     },
   });

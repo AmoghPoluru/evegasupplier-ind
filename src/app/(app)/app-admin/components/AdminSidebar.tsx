@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Users,
   UserCheck,
+  Package,
   ShoppingCart,
   UserCircle,
   Settings,
@@ -16,6 +17,7 @@ import {
 const navItems = [
   { href: '/app-admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/app-admin/suppliers', label: 'All Suppliers', icon: Users },
+  { href: '/app-admin/products', label: 'Products', icon: Package },
   { href: '/app-admin/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/app-admin/buyers', label: 'All Buyers', icon: UserCircle },
 ];

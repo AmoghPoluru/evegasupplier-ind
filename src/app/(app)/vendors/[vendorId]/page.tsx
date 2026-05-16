@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, Clock, CheckCircle2, Star, Loader2, AlertCircle, Building2, Users, DollarSign } from 'lucide-react';
 import { ProductGrid } from '@/components/marketplace/ProductGrid';
 import Image from 'next/image';
+import { nextImageUnoptimizedForSrc } from '@/lib/media-url';
 import { use } from 'react';
 
 interface VendorDetailPageProps {
@@ -101,6 +102,7 @@ export default function VendorDetailPage({ params }: VendorDetailPageProps) {
                         alt={vendor.companyName || 'Company logo'}
                         width={96}
                         height={96}
+                        unoptimized={nextImageUnoptimizedForSrc(logoUrl)}
                         className="w-full h-full object-cover"
                       />
                     </div>
