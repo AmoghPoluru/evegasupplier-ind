@@ -6,6 +6,7 @@ import { buildConfig } from 'payload';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 
+import { blobReadWriteToken } from '@/lib/blob-token';
 import { Users } from './collections/Users';
 import { Media } from './collections/Media';
 import { Vendors } from './collections/Vendors';
@@ -96,7 +97,8 @@ export default buildConfig({
       collections: {
         media: true,
       },
-      token: process.env.BLOB_READ_WRITE_TOKEN ?? '',
+      // Missing/blank → plugin no-ops; Vercel then warns: uploads need `upload.adapter`.
+      token: blobReadWriteToken(),
     }),
   ],
 });

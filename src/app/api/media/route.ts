@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPayload } from 'payload';
 import config from '@payload-config';
+import { blobReadWriteToken } from '@/lib/blob-token';
 import { uploadToBlob, deleteFromBlob } from '@/lib/vercel-blob-storage';
 
 export const maxDuration = 120;
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     let blobUrl: string | null = null;
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
+    if (blobReadWriteToken()) {
       try {
         const blobResult = await uploadToBlob(buffer, file.name, file.type);
         blobUrl = blobResult.url;
