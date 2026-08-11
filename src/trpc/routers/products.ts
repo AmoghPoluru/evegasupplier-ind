@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import type { Where } from 'payload';
 import { hydrateProductImages } from '@/lib/hydrate-product-images';
 import { z } from 'zod';
 import { baseProcedure, createTRPCRouter } from '../init';
@@ -12,13 +13,40 @@ export const productsRouter = createTRPCRouter({
         supplierId: z.string().optional(),
         category: z.string().optional(),
         search: z.string().optional(),
+        verified: z.boolean().optional(),
+        sort: z.enum(['newest', 'priceAsc', 'priceDesc', 'moqAsc']).optional().default('newest'),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const where: Record<string, unknown> = {};
+      // Resolve the published supplier set first so Payload's own pagination
+      // describes the full published-product set instead of a single page.
+      // A supplier is published when status === 'approved' and isActive === true.
+      const supplierWhere: Where = {
+        status: { equals: 'approved' },
+        isActive: { equals: true },
+      };
       if (input.supplierId) {
-        where.supplier = { equals: input.supplierId };
+        supplierWhere.id = { equals: input.supplierId };
       }
+      if (input.verified) {
+        supplierWhere.verifiedSupplier = { equals: true };
+      }
+
+      const publishedSuppliers = await ctx.payload.find({
+        collection: 'vendors',
+        where: supplierWhere,
+        pagination: false,
+        depth: 0,
+      });
+      const supplierIds = publishedSuppliers.docs.map((supplier) => supplier.id);
+
+      if (supplierIds.length === 0) {
+        return { products: [], totalDocs: 0, totalPages: 0, page: input.page };
+      }
+
+      const where: Record<string, unknown> = {
+        supplier: { in: supplierIds },
+      };
       if (input.category) {
         where.category = { equals: input.category };
       }
@@ -30,46 +58,30 @@ export const productsRouter = createTRPCRouter({
         ];
       }
 
+      const sortBy: Record<typeof input.sort, string> = {
+        newest: '-createdAt',
+        priceAsc: 'unitPrice',
+        priceDesc: '-unitPrice',
+        moqAsc: 'moq',
+      };
+
       const result = await ctx.payload.find({
         collection: 'products',
-        where: where as any,
+        where: where as Where,
         limit: input.limit,
         page: input.page,
-        sort: '-createdAt',
+        sort: sortBy[input.sort],
         depth: 2, // supplier + nested relations; populate `images` → `media.url`
       });
 
-      // Filter products to only include those from published suppliers
-      // A supplier is published when status === 'approved' and isActive === true
-      const publishedProducts = result.docs.filter((product: any) => {
-        const supplier = product.supplier;
-        if (!supplier) return false;
-        
-        // Handle both populated and ID reference
-        const supplierData = typeof supplier === 'object' ? supplier : null;
-        if (!supplierData) {
-          // If supplier is just an ID, we need to fetch it
-          // For now, we'll include it and let the frontend handle it
-          // In production, you might want to fetch supplier details here
-          return true; // Include for now, will be filtered by supplier queries
-        }
-        
-        return (
-          supplierData.status === 'approved' &&
-          supplierData.isActive === true
-        );
-      });
-
       await Promise.all(
-        publishedProducts.map((product) =>
-          hydrateProductImages(ctx.payload, product),
-        ),
+        result.docs.map((product) => hydrateProductImages(ctx.payload, product)),
       );
 
       return {
-        products: publishedProducts,
-        totalDocs: publishedProducts.length,
-        totalPages: Math.ceil(publishedProducts.length / input.limit),
+        products: result.docs,
+        totalDocs: result.totalDocs,
+        totalPages: result.totalPages,
         page: result.page,
       };
     }),
@@ -138,7 +150,7 @@ export const productsRouter = createTRPCRouter({
 
       const result = await ctx.payload.find({
         collection: 'products',
-        where: where as any,
+        where: where as Where,
         limit: input.limit,
         page: input.page,
         sort: '-createdAt',

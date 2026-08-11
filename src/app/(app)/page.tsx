@@ -1,10 +1,20 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, Suspense } from 'react';
+import { useState, useLayoutEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { trpc } from '@/trpc/client';
-import { VendorSection } from '@/components/marketplace/VendorSection';
+import { ProductGridCard } from '@/components/marketplace/ProductGridCard';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Pagination,
   PaginationContent,
@@ -14,42 +24,133 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { useDebounce } from '@/hooks/use-debounce';
+import { AlertCircle, Loader2, Search } from 'lucide-react';
+
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Sort: Newest' },
+  { value: 'priceAsc', label: 'Price: low to high' },
+  { value: 'priceDesc', label: 'Price: high to low' },
+  { value: 'moqAsc', label: 'MOQ: low to high' },
+] as const;
+
+type SortOption = (typeof SORT_OPTIONS)[number]['value'];
+
+const ALL_SUPPLIERS = 'all';
 
 function SuppliersMarketplaceList() {
   const searchParams = useSearchParams();
-  const [page, setPage] = useState(1);
-  const limit = 10;
+  const router = useRouter();
+  const limit = 20;
 
+  const [searchInput, setSearchInput] = useState('');
+  const [sort, setSort] = useState<SortOption>('newest');
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [page, setPage] = useState(1);
+
+  const search = useDebounce(searchInput, 300);
   const supplierId = searchParams.get('supplier') || undefined;
 
-  useEffect(() => {
+  // Reset pagination whenever the active query changes (derived state, no effect).
+  const filterKey = JSON.stringify([supplierId, search, sort, verifiedOnly]);
+  const [activeFilterKey, setActiveFilterKey] = useState(filterKey);
+  if (activeFilterKey !== filterKey) {
+    setActiveFilterKey(filterKey);
     setPage(1);
-  }, [supplierId]);
+  }
 
-  const { data, isLoading, error } = trpc.vendors.marketplace.list.useQuery({
+  const { data: suppliers } = trpc.vendors.list.useQuery({ limit: 100 });
+
+  const { data, isLoading, error } = trpc.products.list.useQuery({
     limit,
     page,
-    includeProducts: true,
-    supplierId: supplierId || undefined,
+    supplierId,
+    search: search || undefined,
+    sort,
+    verified: verifiedOnly || undefined,
   });
+
+  const handleSupplierChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === ALL_SUPPLIERS) {
+      params.delete('supplier');
+    } else {
+      params.set('supplier', value);
+    }
+    const query = params.toString();
+    router.replace(query ? `/?${query}` : '/');
+  };
+
+  const products = data?.products ?? [];
+  const totalPages = data?.totalPages ?? 0;
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent mb-2">
-            Suppliers Marketplace
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Discover trusted suppliers and their products
-          </p>
+      <main className="container mx-auto px-4 py-6">
+        {/* Heading + slim toolbar (no banner, no category nav) */}
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-bold">All products</h1>
+            <p className="text-xs text-muted-foreground">
+              {data ? `${data.totalDocs} products` : 'Loading products'}
+              {suppliers ? ` from ${suppliers.totalDocs} suppliers` : ''}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search products or SKU"
+                className="h-9 w-56 pl-8 text-xs"
+              />
+            </div>
+
+            <Select value={sort} onValueChange={(value) => setSort(value as SortOption)}>
+              <SelectTrigger className="w-[170px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value} className="text-xs">
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={supplierId ?? ALL_SUPPLIERS} onValueChange={handleSupplierChange}>
+              <SelectTrigger className="w-[180px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_SUPPLIERS} className="text-xs">
+                  All suppliers
+                </SelectItem>
+                {(suppliers?.vendors ?? []).map((vendor) => (
+                  <SelectItem key={vendor.id} value={vendor.id} className="text-xs">
+                    {vendor.companyName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Label className="flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-normal">
+              <Checkbox
+                checked={verifiedOnly}
+                onCheckedChange={(checked) => setVerifiedOnly(checked === true)}
+              />
+              Verified only
+            </Label>
+          </div>
         </div>
 
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Loading suppliers...</span>
+            <span className="ml-2 text-muted-foreground">Loading products...</span>
           </div>
         )}
 
@@ -59,7 +160,7 @@ function SuppliersMarketplaceList() {
               <div className="flex items-center gap-2 text-destructive">
                 <AlertCircle className="w-5 h-5" />
                 <div>
-                  <p className="font-semibold">Error loading suppliers</p>
+                  <p className="font-semibold">Error loading products</p>
                   <p className="text-sm">{error.message}</p>
                 </div>
               </div>
@@ -67,30 +168,29 @@ function SuppliersMarketplaceList() {
           </Card>
         )}
 
-        {data && data.vendors.length > 0 && (
-          <div className="space-y-12">
-            {data.vendors.map((vendor) => (
-              <VendorSection key={vendor.id} vendor={vendor} />
+        {/* Flat product grid: every product, vendor shown per card */}
+        {products.length > 0 && (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {products.map((product) => (
+              <ProductGridCard key={product.id} product={product} />
             ))}
           </div>
         )}
 
-        {data && data.vendors.length === 0 && (
+        {data && products.length === 0 && (
           <Card>
             <CardContent className="pt-6">
               <div className="text-center py-12">
-                <p className="text-lg font-semibold text-foreground mb-2">No suppliers found</p>
+                <p className="text-lg font-semibold text-foreground mb-2">No products found</p>
                 <p className="text-sm text-muted-foreground">
-                  {supplierId
-                    ? 'Try selecting a different supplier to see more results.'
-                    : 'Check back later or create a supplier account to get started.'}
+                  Try clearing the search, supplier or verified filters.
                 </p>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {data && data.totalPages > 1 && (
+        {data && totalPages > 1 && (
           <div className="mt-8">
             <Pagination>
               <PaginationContent>
@@ -104,14 +204,12 @@ function SuppliersMarketplaceList() {
                     className={page === 1 ? 'pointer-events-none opacity-50' : ''}
                   />
                 </PaginationItem>
-                {Array.from({ length: Math.min(5, data.totalPages) }, (_, i) => {
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum: number;
-                  if (data.totalPages <= 5) {
+                  if (totalPages <= 5 || page <= 3) {
                     pageNum = i + 1;
-                  } else if (page <= 3) {
-                    pageNum = i + 1;
-                  } else if (page >= data.totalPages - 2) {
-                    pageNum = data.totalPages - 4 + i;
+                  } else if (page >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
                   } else {
                     pageNum = page - 2 + i;
                   }
@@ -130,7 +228,7 @@ function SuppliersMarketplaceList() {
                     </PaginationItem>
                   );
                 })}
-                {data.totalPages > 5 && page < data.totalPages - 2 && (
+                {totalPages > 5 && page < totalPages - 2 && (
                   <PaginationItem>
                     <PaginationEllipsis />
                   </PaginationItem>
@@ -140,16 +238,16 @@ function SuppliersMarketplaceList() {
                     href="#"
                     onClick={(e) => {
                       e.preventDefault();
-                      if (page < data.totalPages) setPage(page + 1);
+                      if (page < totalPages) setPage(page + 1);
                     }}
-                    className={page >= data.totalPages ? 'pointer-events-none opacity-50' : ''}
+                    className={page >= totalPages ? 'pointer-events-none opacity-50' : ''}
                   />
                 </PaginationItem>
               </PaginationContent>
             </Pagination>
             <div className="text-center mt-4 text-sm text-muted-foreground">
               Showing {(page - 1) * limit + 1} to {Math.min(page * limit, data.totalDocs)} of{' '}
-              {data.totalDocs} suppliers
+              {data.totalDocs} products
             </div>
           </div>
         )}
