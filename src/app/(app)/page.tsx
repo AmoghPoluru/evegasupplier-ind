@@ -2,12 +2,9 @@
 
 import { useState, useEffect, useLayoutEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { trpc } from '@/trpc/client';
 import { VendorSection } from '@/components/marketplace/VendorSection';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Pagination,
   PaginationContent,
@@ -17,49 +14,7 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
-import { AlertCircle, Loader2, Lock, LogIn } from 'lucide-react';
-
-function LoginGate() {
-  return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent mb-2">
-            Suppliers Marketplace
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Discover trusted suppliers and their products
-          </p>
-        </div>
-
-        <Card className="mx-auto max-w-lg border-dashed">
-          <CardContent className="space-y-4 pt-6">
-            <div className="flex justify-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <Lock className="h-6 w-6 text-muted-foreground" aria-hidden />
-              </div>
-            </div>
-            <Alert>
-              <LogIn className="h-4 w-4" />
-              <AlertTitle>Please log in</AlertTitle>
-              <AlertDescription className="space-y-2">
-                <p>You need to be signed in to view the home page and browse suppliers.</p>
-              </AlertDescription>
-            </Alert>
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-              <Button asChild>
-                <Link href="/login">Log in</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/signup">Create an account</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
-  );
-}
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 function SuppliersMarketplaceList() {
   const searchParams = useSearchParams();
@@ -233,11 +188,7 @@ function HomeContent() {
     );
   }
 
-  if (!session?.user) {
-    return <LoginGate />;
-  }
-
-  const role = (session.user as { role?: string }).role;
+  const role = (session?.user as { role?: string } | undefined)?.role;
   if (role === 'bdo' && !browse) {
     return (
       <div className="min-h-screen bg-background">
