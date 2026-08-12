@@ -8,6 +8,63 @@ import {
   adminProductUpdateFullInputSchema,
   toPayloadProductData,
 } from "@/lib/admin-product-form-schema";
+import { toAdminUserView } from "@/lib/admin-user-types";
+
+const userRoleSchema = z.enum(["user", "vendor", "buyer", "admin", "bdo"]);
+const oauthProviderSchema = z.enum(["email", "google", "facebook"]);
+
+async function assertCanDeleteUser(
+  payload: { find: Function; findByID: Function },
+  targetUserId: string,
+  currentUserId: string,
+) {
+  if (targetUserId === currentUserId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "You cannot delete your own account while logged in",
+    });
+  }
+
+  const target = await payload.findByID({
+    collection: "users",
+    id: targetUserId,
+  });
+
+  if ((target as { role?: string }).role === "admin") {
+    const admins = await payload.find({
+      collection: "users",
+      where: { role: { equals: "admin" } },
+      limit: 2,
+    });
+    if (admins.totalDocs <= 1) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Cannot delete the last admin account",
+      });
+    }
+  }
+
+  const [supplierProfile, buyerProfile] = await Promise.all([
+    payload.find({
+      collection: "suppliers",
+      where: { user: { equals: targetUserId } },
+      limit: 1,
+    }),
+    payload.find({
+      collection: "buyers",
+      where: { user: { equals: targetUserId } },
+      limit: 1,
+    }),
+  ]);
+
+  if (supplierProfile.totalDocs > 0 || buyerProfile.totalDocs > 0) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "Delete linked supplier or buyer profiles before deleting this user",
+    });
+  }
+}
 
 /**
  * Admin procedure that requires admin role
@@ -55,9 +112,6 @@ export const adminRouter = createTRPCRouter({
 
       const [
         vendorsTotal,
-        vendorsPendingExplicit,
-        vendorsPendingMissing,
-        vendorsApproved,
         buyersTotal,
         buyersPending,
         productsTotal,
@@ -66,21 +120,6 @@ export const adminRouter = createTRPCRouter({
         revenueOrders,
       ] = await Promise.all([
         payload.find({ collection: 'suppliers', limit: 0, where: {} }),
-        payload.find({
-          collection: 'suppliers',
-          limit: 0,
-          where: { status: { equals: 'pending' } },
-        }),
-        payload.find({
-          collection: 'suppliers',
-          limit: 0,
-          where: { status: { exists: false } },
-        }),
-        payload.find({
-          collection: 'suppliers',
-          limit: 0,
-          where: { status: { equals: 'approved' } },
-        }),
         payload.find({ collection: 'buyers', limit: 0, where: {} }),
         payload.find({
           collection: 'buyers',
@@ -124,9 +163,6 @@ export const adminRouter = createTRPCRouter({
       return {
         vendors: {
           total: vendorsTotal.totalDocs,
-          pending:
-            vendorsPendingExplicit.totalDocs + vendorsPendingMissing.totalDocs,
-          approved: vendorsApproved.totalDocs,
         },
         buyers: {
           total: buyersTotal.totalDocs,
@@ -151,48 +187,6 @@ export const adminRouter = createTRPCRouter({
    * Vendor management
    */
   vendors: createTRPCRouter({
-    /**
-     * List pending vendors
-     */
-    pending: adminProcedure
-      .input(
-        z.object({
-          limit: z.number().min(1).max(100).optional().default(20),
-          page: z.number().min(1).optional().default(1),
-        })
-      )
-      .query(async ({ ctx, input }) => {
-        const payload = ctx.payload;
-        const skip = (input.page - 1) * input.limit;
-
-        // Find vendors with status 'pending' OR status is null/undefined (treat as pending)
-        // First, get all vendors and filter in memory to handle null/undefined status
-        const allVendors = await payload.find({
-          collection: "suppliers",
-          limit: 1000, // Get a large batch to filter
-          sort: "-createdAt",
-        });
-
-        // Filter vendors where status is 'pending' or null/undefined
-        const pendingVendors = allVendors.docs.filter((vendor: any) => {
-          const status = vendor.status;
-          return (
-            status === "pending" || status === null || status === undefined
-          );
-        });
-
-        // Apply pagination
-        const paginatedVendors = pendingVendors.slice(skip, skip + input.limit);
-
-        return {
-          vendors: paginatedVendors,
-          total: pendingVendors.length,
-          page: input.page,
-          totalPages: Math.ceil(pendingVendors.length / input.limit),
-          limit: input.limit,
-        };
-      }),
-
     /**
      * List all vendors with filters
      */
@@ -309,177 +303,6 @@ export const adminRouter = createTRPCRouter({
         }
 
         return vendor;
-      }),
-
-    /**
-     * Approve vendor
-     */
-    approve: adminProcedure
-      .input(z.object({ vendorId: z.string() }))
-      .mutation(async ({ ctx, input }) => {
-        const payload = ctx.payload;
-
-        // Check if vendor exists
-        const vendor = await payload.findByID({
-          collection: "suppliers",
-          id: input.vendorId,
-        });
-
-        if (!vendor) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Vendor not found",
-          });
-        }
-
-        // Update vendor
-        const updated = await payload.update({
-          collection: "suppliers",
-          id: input.vendorId,
-          data: {
-            status: "approved",
-            isActive: true,
-          } as any,
-        });
-
-        return {
-          vendor: updated,
-          success: true,
-          message: "Vendor approved successfully",
-        };
-      }),
-
-    /**
-     * Reject vendor
-     */
-    reject: adminProcedure
-      .input(
-        z.object({
-          vendorId: z.string(),
-          reason: z.string().optional(),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const payload = ctx.payload;
-
-        // Check if vendor exists
-        const vendor = await payload.findByID({
-          collection: "suppliers",
-          id: input.vendorId,
-        });
-
-        if (!vendor) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Vendor not found",
-          });
-        }
-
-        // Update vendor
-        const updateData: any = {
-          status: "rejected",
-          isActive: false,
-        };
-
-        // Add rejection reason if field exists
-        if (input.reason) {
-          updateData.rejectionReason = input.reason;
-        }
-
-        const updated = await payload.update({
-          collection: "suppliers",
-          id: input.vendorId,
-          data: updateData,
-        });
-
-        return {
-          vendor: updated,
-          success: true,
-          message: "Vendor rejected successfully",
-        };
-      }),
-
-    /**
-     * Suspend vendor
-     */
-    suspend: adminProcedure
-      .input(
-        z.object({
-          vendorId: z.string(),
-          reason: z.string().optional(),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const payload = ctx.payload;
-
-        const vendor = await payload.findByID({
-          collection: "suppliers",
-          id: input.vendorId,
-        });
-
-        if (!vendor) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Vendor not found",
-          });
-        }
-
-        const updateData: any = {
-          status: "suspended",
-          isActive: false,
-        };
-
-        if (input.reason) {
-          updateData.suspensionReason = input.reason;
-        }
-
-        const updated = await payload.update({
-          collection: "suppliers",
-          id: input.vendorId,
-          data: updateData,
-        });
-
-        return {
-          vendor: updated,
-          success: true,
-          message: "Vendor suspended successfully",
-        };
-      }),
-
-    /**
-     * Activate vendor
-     */
-    activate: adminProcedure
-      .input(z.object({ vendorId: z.string() }))
-      .mutation(async ({ ctx, input }) => {
-        const payload = ctx.payload;
-
-        const vendor = await payload.findByID({
-          collection: "suppliers",
-          id: input.vendorId,
-        });
-
-        if (!vendor) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Vendor not found",
-          });
-        }
-
-        const updated = await payload.update({
-          collection: "suppliers",
-          id: input.vendorId,
-          data: {
-            status: "approved",
-            isActive: true,
-          } as any,
-        });
-
-        return {
-          vendor: updated,
-          success: true,
-          message: "Vendor activated successfully",
-        };
       }),
 
     /**
@@ -1412,6 +1235,282 @@ export const adminRouter = createTRPCRouter({
         });
 
         return result.docs;
+      }),
+  }),
+
+  /**
+   * User account management
+   */
+  users: createTRPCRouter({
+    list: adminProcedure
+      .input(
+        z.object({
+          limit: z.number().min(1).max(100).optional().default(20),
+          page: z.number().min(1).optional().default(1),
+          role: z
+            .enum(["all", "user", "vendor", "buyer", "admin", "bdo"])
+            .optional()
+            .default("all"),
+          search: z.string().optional(),
+          sort: z
+            .enum([
+              "createdAt",
+              "-createdAt",
+              "email",
+              "-email",
+              "name",
+              "-name",
+              "role",
+              "-role",
+            ])
+            .optional()
+            .default("-createdAt"),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        const where: Record<string, unknown> = {};
+
+        if (input.role !== "all") {
+          where.role = { equals: input.role };
+        }
+
+        if (input.search?.trim()) {
+          const q = input.search.trim();
+          where.or = [{ email: { contains: q } }, { name: { contains: q } }];
+        }
+
+        const result = await ctx.payload.find({
+          collection: "users",
+          where: where as any,
+          limit: input.limit,
+          page: input.page,
+          sort: input.sort,
+          depth: 0,
+        });
+
+        const usersWithProfiles = await Promise.all(
+          result.docs.map(async (user: any) => {
+            const [suppliers, buyers] = await Promise.all([
+              ctx.payload.find({
+                collection: "suppliers",
+                where: { user: { equals: user.id } },
+                limit: 1,
+              }),
+              ctx.payload.find({
+                collection: "buyers",
+                where: { user: { equals: user.id } },
+                limit: 1,
+              }),
+            ]);
+
+            return {
+              ...toAdminUserView(user),
+              hasSupplierProfile: suppliers.totalDocs > 0,
+              hasBuyerProfile: buyers.totalDocs > 0,
+            };
+          }),
+        );
+
+        return {
+          users: usersWithProfiles,
+          total: result.totalDocs,
+          page: input.page,
+          totalPages: Math.ceil(result.totalDocs / input.limit),
+          limit: input.limit,
+        };
+      }),
+
+    getOne: adminProcedure
+      .input(z.object({ userId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        try {
+          const user = await ctx.payload.findByID({
+            collection: "users",
+            id: input.userId,
+            depth: 0,
+          });
+
+          const [suppliers, buyers] = await Promise.all([
+            ctx.payload.find({
+              collection: "suppliers",
+              where: { user: { equals: input.userId } },
+              limit: 1,
+              depth: 0,
+            }),
+            ctx.payload.find({
+              collection: "buyers",
+              where: { user: { equals: input.userId } },
+              limit: 1,
+              depth: 0,
+            }),
+          ]);
+
+          return {
+            ...toAdminUserView(user as Parameters<typeof toAdminUserView>[0]),
+            supplierProfile: suppliers.docs[0]
+              ? { id: suppliers.docs[0].id, companyName: (suppliers.docs[0] as { companyName?: string }).companyName }
+              : null,
+            buyerProfile: buyers.docs[0]
+              ? { id: buyers.docs[0].id, companyName: (buyers.docs[0] as { companyName?: string }).companyName }
+              : null,
+          };
+        } catch {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "User not found",
+          });
+        }
+      }),
+
+    create: adminProcedure
+      .input(
+        z.object({
+          email: z.string().email(),
+          password: z.string().min(6),
+          name: z.string().optional(),
+          role: userRoleSchema.optional().default("user"),
+          oauthProvider: oauthProviderSchema.optional().default("email"),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const existing = await ctx.payload.find({
+          collection: "users",
+          where: { email: { equals: input.email } },
+          limit: 1,
+        });
+
+        if (existing.totalDocs > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A user with this email already exists",
+          });
+        }
+
+        const user = await ctx.payload.create({
+          collection: "users",
+          data: {
+            email: input.email,
+            password: input.password,
+            name: input.name,
+            role: input.role,
+            oauthProvider: input.oauthProvider,
+          },
+          overrideAccess: true,
+        });
+
+        return {
+          user: toAdminUserView(user as Parameters<typeof toAdminUserView>[0]),
+          success: true as const,
+        };
+      }),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          userId: z.string(),
+          email: z.string().email().optional(),
+          name: z.string().nullable().optional(),
+          role: userRoleSchema.optional(),
+          oauthProvider: oauthProviderSchema.optional(),
+          password: z.string().min(6).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { userId, password, ...fields } = input;
+        const data: Record<string, unknown> = {};
+
+        if (fields.email !== undefined) data.email = fields.email;
+        if (fields.name !== undefined) data.name = fields.name;
+        if (fields.role !== undefined) data.role = fields.role;
+        if (fields.oauthProvider !== undefined) {
+          data.oauthProvider = fields.oauthProvider;
+        }
+        if (password) data.password = password;
+
+        if (Object.keys(data).length === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No fields to update",
+          });
+        }
+
+        if (
+          userId === ctx.user.id &&
+          fields.role !== undefined &&
+          fields.role !== "admin"
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "You cannot remove your own admin role",
+          });
+        }
+
+        if (fields.role !== undefined && fields.role !== "admin") {
+          const current = await ctx.payload.findByID({
+            collection: "users",
+            id: userId,
+          });
+          if ((current as { role?: string }).role === "admin") {
+            const admins = await ctx.payload.find({
+              collection: "users",
+              where: { role: { equals: "admin" } },
+              limit: 2,
+            });
+            if (admins.totalDocs <= 1) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Cannot demote the last admin account",
+              });
+            }
+          }
+        }
+
+        try {
+          const user = await ctx.payload.update({
+            collection: "users",
+            id: userId,
+            data,
+            overrideAccess: true,
+          });
+
+          return {
+            user: toAdminUserView(user as Parameters<typeof toAdminUserView>[0]),
+            success: true as const,
+          };
+        } catch {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "User not found",
+          });
+        }
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ userId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        await assertCanDeleteUser(
+          ctx.payload,
+          input.userId,
+          String(ctx.user.id),
+        );
+
+        try {
+          await ctx.payload.delete({
+            collection: "users",
+            id: input.userId,
+            overrideAccess: true,
+          });
+
+          return {
+            success: true as const,
+            message: "User deleted successfully",
+          };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: error?.message || "Failed to delete user",
+          });
+        }
       }),
   }),
 });

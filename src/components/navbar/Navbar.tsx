@@ -35,7 +35,7 @@ export function Navbar() {
   const [cartOpen, setCartOpen] = useState(false);
   const { getItemCount, items } = useCartStore();
   const [itemCount, setItemCount] = useState(0);
-  const [isMounted, setIsMounted] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const [supplierSearchQuery, setSupplierSearchQuery] = useState('');
@@ -47,26 +47,22 @@ export function Navbar() {
   const isAdmin = sessionUser ? checkIfAdmin(sessionUser as any) : false;
   const sessionRole = (sessionUser as { role?: string } | undefined)?.role;
   const isVendorRole = sessionRole === 'vendor';
-  
-  // Track if component has mounted to prevent hydration mismatch
-  const [hasMounted, setHasMounted] = useState(false);
-  
+
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
   // Update cart count after mount to avoid hydration mismatch
   useEffect(() => {
-    setIsMounted(true);
     setItemCount(getItemCount());
   }, [getItemCount]);
 
   // Update cart count when items change
   useEffect(() => {
-    if (isMounted) {
+    if (hasMounted) {
       setItemCount(getItemCount());
     }
-  }, [items, getItemCount, isMounted]);
+  }, [items, getItemCount, hasMounted]);
   
   // Get selected supplier from URL
   const selectedSupplierId = searchParams.get('supplier') || undefined;
@@ -169,63 +165,70 @@ export function Navbar() {
             </Link>
           )}
           
-          {/* Suppliers Dropdown */}
-          <DropdownMenu open={isSupplierDropdownOpen} onOpenChange={setIsSupplierDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="text-sm font-medium">
-                <Store className="w-4 h-4 mr-2" />
-                {selectedVendorName}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-64" align="start">
-              <DropdownMenuLabel>Select Supplier</DropdownMenuLabel>
-              <div className="px-2 pb-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                  <Input
-                    type="text"
-                    placeholder="Search suppliers..."
-                    value={supplierSearchQuery}
-                    onChange={(e) => setSupplierSearchQuery(e.target.value)}
-                    className="pl-8 pr-8 h-9"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  {supplierSearchQuery && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSupplierSearchQuery('');
-                      }}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
+          {/* Suppliers Dropdown — client-only to avoid Radix SSR id mismatch */}
+          {hasMounted ? (
+            <DropdownMenu open={isSupplierDropdownOpen} onOpenChange={setIsSupplierDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="text-sm font-medium">
+                  <Store className="w-4 h-4 mr-2" />
+                  {selectedVendorName}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-64" align="start">
+                <DropdownMenuLabel>Select Supplier</DropdownMenuLabel>
+                <div className="px-2 pb-2">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                    <Input
+                      type="text"
+                      placeholder="Search suppliers..."
+                      value={supplierSearchQuery}
+                      onChange={(e) => setSupplierSearchQuery(e.target.value)}
+                      className="pl-8 pr-8 h-9"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    {supplierSearchQuery && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSupplierSearchQuery('');
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <div className="max-h-[300px] overflow-y-auto">
+                  {filteredVendors.length > 0 ? (
+                    filteredVendors.map((vendor) => {
+                      const companyName = (vendor as any).companyName || 'Unknown';
+                      return (
+                        <DropdownMenuItem
+                          key={vendor.id}
+                          onClick={() => handleSupplierSelect(vendor.id)}
+                          className={selectedSupplierId === vendor.id ? 'bg-accent' : ''}
+                        >
+                          {companyName}
+                        </DropdownMenuItem>
+                      );
+                    })
+                  ) : (
+                    <DropdownMenuItem disabled>No suppliers found</DropdownMenuItem>
                   )}
                 </div>
-              </div>
-              <DropdownMenuSeparator />
-              <div className="max-h-[300px] overflow-y-auto">
-                {filteredVendors.length > 0 ? (
-                  filteredVendors.map((vendor) => {
-                    const companyName = (vendor as any).companyName || 'Unknown';
-                    return (
-                      <DropdownMenuItem
-                        key={vendor.id}
-                        onClick={() => handleSupplierSelect(vendor.id)}
-                        className={selectedSupplierId === vendor.id ? 'bg-accent' : ''}
-                      >
-                        {companyName}
-                      </DropdownMenuItem>
-                    );
-                  })
-                ) : (
-                  <DropdownMenuItem disabled>No suppliers found</DropdownMenuItem>
-                )}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="ghost" className="text-sm font-medium" disabled>
+              <Store className="w-4 h-4 mr-2" />
+              Select Supplier
+            </Button>
+          )}
         </div>
 
         {/* Right Side - Cart & Auth */}
@@ -238,7 +241,7 @@ export function Navbar() {
             onClick={() => setCartOpen(true)}
           >
             <ShoppingCart className="h-5 w-5" />
-            {isMounted && itemCount > 0 && (
+            {hasMounted && itemCount > 0 && (
               <Badge
                 variant="destructive"
                 className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
@@ -248,7 +251,9 @@ export function Navbar() {
             )}
           </Button>
 
-          {isAuthenticated ? (
+          {!hasMounted ? (
+            <div className="h-10 w-10" aria-hidden />
+          ) : isAuthenticated ? (
             <ProfileDropdown user={user} hasMounted={hasMounted} isAdmin={isAdmin} logout={logout} />
           ) : (
             <Button asChild variant="default">
@@ -257,7 +262,9 @@ export function Navbar() {
           )}
         </div>
       </div>
-      <CartDrawer open={cartOpen} onOpenChange={setCartOpen} />
+      {hasMounted ? (
+        <CartDrawer open={cartOpen} onOpenChange={setCartOpen} />
+      ) : null}
     </nav>
   );
 }
