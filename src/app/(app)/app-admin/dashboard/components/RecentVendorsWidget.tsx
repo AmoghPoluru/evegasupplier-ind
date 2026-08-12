@@ -55,9 +55,9 @@ export function RecentVendorsWidget() {
             </CardTitle>
             <CardDescription>Latest vendor registrations</CardDescription>
           </div>
-          <Link href="/app-admin/vendors/pending">
+          <Link href="/app-admin/suppliers">
             <Button variant="ghost" size="sm" className="flex items-center gap-1">
-              View Pending
+              View all suppliers
               <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
@@ -71,7 +71,7 @@ export function RecentVendorsWidget() {
             {vendors.map((vendor: any) => (
               <Link
                 key={vendor.id}
-                href={`/app-admin/vendors/${vendor.id}`}
+                href={`/app-admin/suppliers`}
                 className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <div className="flex-1 min-w-0">

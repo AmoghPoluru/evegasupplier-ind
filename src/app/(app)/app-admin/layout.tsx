@@ -7,17 +7,14 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Require admin access
   await requireAdmin();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AdminHeader />
-      <div className="flex pt-16">
-        <AdminSidebar />
-        <main className="flex-1 p-6 ml-64">
-          {children}
-        </main>
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <AdminSidebar />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AdminHeader />
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
   );
