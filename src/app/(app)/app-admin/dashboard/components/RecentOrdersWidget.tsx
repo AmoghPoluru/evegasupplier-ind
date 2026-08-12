@@ -83,7 +83,10 @@ export function RecentOrdersWidget() {
                     {getStatusBadge(order.status || 'pending')}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Total: ${typeof order.total === 'number' ? order.total.toFixed(2) : '0.00'}
+                    Total: $
+                    {typeof order.totalAmount === 'number'
+                      ? order.totalAmount.toFixed(2)
+                      : '0.00'}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     {order.createdAt

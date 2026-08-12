@@ -50,103 +50,99 @@ export const adminRouter = createTRPCRouter({
     stats: adminProcedure.query(async ({ ctx }) => {
       const payload = ctx.payload;
 
-      // Get vendor statistics
-      const vendorsResult = await payload.find({
-        collection: "vendors",
-        limit: 0,
-        where: {},
-      });
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      // Get all vendors and filter for pending (including null/undefined status)
-      const allVendors = await payload.find({
-        collection: "vendors",
-        limit: 1000,
-      });
+      const [
+        vendorsTotal,
+        vendorsPendingExplicit,
+        vendorsPendingMissing,
+        vendorsApproved,
+        buyersTotal,
+        buyersPending,
+        productsTotal,
+        ordersTotal,
+        ordersOpen,
+        revenueOrders,
+      ] = await Promise.all([
+        payload.find({ collection: 'vendors', limit: 0, where: {} }),
+        payload.find({
+          collection: 'vendors',
+          limit: 0,
+          where: { status: { equals: 'pending' } },
+        }),
+        payload.find({
+          collection: 'vendors',
+          limit: 0,
+          where: { status: { exists: false } },
+        }),
+        payload.find({
+          collection: 'vendors',
+          limit: 0,
+          where: { status: { equals: 'approved' } },
+        }),
+        payload.find({ collection: 'buyers', limit: 0, where: {} }),
+        payload.find({
+          collection: 'buyers',
+          limit: 0,
+          where: { verificationStatus: { equals: 'pending' } },
+        }),
+        payload.find({ collection: 'products', limit: 0, where: {} }),
+        payload.find({ collection: 'orders', limit: 0, where: {} }),
+        payload.find({
+          collection: 'orders',
+          limit: 0,
+          where: {
+            status: {
+              not_in: ['completed', 'cancelled', 'delivered'],
+            },
+          },
+        }),
+        payload.find({
+          collection: 'orders',
+          limit: 500,
+          sort: '-createdAt',
+          where: {},
+        }),
+      ]);
 
-      const pendingVendors = {
-        totalDocs: allVendors.docs.filter((v: any) => {
-          const status = v.status;
-          return (
-            status === "pending" || status === null || status === undefined
-          );
-        }).length,
-      };
+      const sumOrderTotals = (docs: { totalAmount?: number | null }[]) =>
+        docs.reduce(
+          (sum, order) =>
+            sum + (typeof order.totalAmount === 'number' ? order.totalAmount : 0),
+          0,
+        );
 
-      const approvedVendors = await payload.find({
-        collection: "vendors",
-        limit: 0,
-        where: {
-          status: { equals: "approved" },
-        },
-      });
-
-      const rejectedVendors = await payload.find({
-        collection: "vendors",
-        limit: 0,
-        where: {
-          status: { equals: "rejected" },
-        },
-      });
-
-      const suspendedVendors = await payload.find({
-        collection: "vendors",
-        limit: 0,
-        where: {
-          status: { equals: "suspended" },
-        },
-      });
-
-      // Get order statistics
-      const ordersResult = await payload.find({
-        collection: "orders",
-        limit: 0,
-        where: {},
-      });
-
-      // Get buyer statistics
-      const buyersResult = await payload.find({
-        collection: "buyers" as any,
-        limit: 0,
-        where: {},
-      });
-
-      // Get product statistics
-      const productsResult = await payload.find({
-        collection: "products",
-        limit: 0,
-        where: {},
-      });
-
-      // Calculate revenue (sum of all order totals)
-      const allOrders = await payload.find({
-        collection: "orders",
-        limit: 1000, // Adjust if needed
-        where: {},
-      });
-
-      const revenue = allOrders.docs.reduce((sum, order) => {
-        const total = (order as any).total;
-        return sum + (typeof total === "number" ? total : 0);
-      }, 0);
+      const revenueAllTime = sumOrderTotals(revenueOrders.docs);
+      const revenue30d = sumOrderTotals(
+        revenueOrders.docs.filter((order) => {
+          if (!order.createdAt) return false;
+          return new Date(order.createdAt) >= thirtyDaysAgo;
+        }),
+      );
 
       return {
         vendors: {
-          total: vendorsResult.totalDocs,
-          pending: pendingVendors.totalDocs,
-          approved: approvedVendors.totalDocs,
-          rejected: rejectedVendors.totalDocs,
-          suspended: suspendedVendors.totalDocs,
-        },
-        orders: {
-          total: ordersResult.totalDocs,
+          total: vendorsTotal.totalDocs,
+          pending:
+            vendorsPendingExplicit.totalDocs + vendorsPendingMissing.totalDocs,
+          approved: vendorsApproved.totalDocs,
         },
         buyers: {
-          total: buyersResult.totalDocs,
+          total: buyersTotal.totalDocs,
+          pending: buyersPending.totalDocs,
         },
         products: {
-          total: productsResult.totalDocs,
+          total: productsTotal.totalDocs,
         },
-        revenue,
+        orders: {
+          total: ordersTotal.totalDocs,
+          open: ordersOpen.totalDocs,
+        },
+        revenue: {
+          allTime: revenueAllTime,
+          last30Days: revenue30d,
+        },
       };
     }),
   }),
@@ -1289,9 +1285,118 @@ export const adminRouter = createTRPCRouter({
    * Order management
    */
   orders: createTRPCRouter({
-    /**
-     * Get recent orders
-     */
+    list: adminProcedure
+      .input(
+        z.object({
+          page: z.number().min(1).optional().default(1),
+          limit: z.number().min(1).max(100).optional().default(20),
+          search: z.string().optional(),
+          status: z.string().optional(),
+          sort: z
+            .enum(['-createdAt', 'createdAt', 'totalAmount', '-totalAmount'])
+            .optional()
+            .default('-createdAt'),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        const where: Record<string, any> = {};
+
+        if (input.status) {
+          where.status = { equals: input.status };
+        }
+
+        if (input.search?.trim()) {
+          const q = input.search.trim();
+          where.or = [
+            { poNumber: { contains: q } },
+            { phoneNumber: { contains: q } },
+          ];
+        }
+
+        const result = await ctx.payload.find({
+          collection: 'orders',
+          where,
+          limit: input.limit,
+          page: input.page,
+          sort: input.sort,
+          depth: 2,
+        });
+
+        const totalPages = Math.max(
+          1,
+          Math.ceil(result.totalDocs / input.limit),
+        );
+
+        return {
+          docs: result.docs,
+          totalDocs: result.totalDocs,
+          totalPages,
+          page: input.page,
+          limit: input.limit,
+        };
+      }),
+
+    getById: adminProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ ctx, input }) => {
+        try {
+          const order = await ctx.payload.findByID({
+            collection: 'orders',
+            id: input.id,
+            depth: 2,
+          });
+          return order;
+        } catch {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Order not found',
+          });
+        }
+      }),
+
+    update: adminProcedure
+      .input(
+        z.object({
+          id: z.string(),
+          status: z
+            .enum([
+              'pending',
+              'confirmed',
+              'in_production',
+              'quality_check',
+              'shipped',
+              'delivered',
+              'completed',
+              'cancelled',
+              'disputed',
+            ])
+            .optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        if (Object.keys(data).length === 0) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'No fields to update',
+          });
+        }
+
+        try {
+          const order = await ctx.payload.update({
+            collection: 'orders',
+            id,
+            data,
+          });
+          return { order, success: true as const };
+        } catch {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Order not found',
+          });
+        }
+      }),
+
     recent: adminProcedure
       .input(
         z.object({ limit: z.number().min(1).max(50).optional().default(10) })
