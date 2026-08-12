@@ -12,15 +12,8 @@ import { Media } from './collections/Media';
 import { Vendors } from './collections/Vendors';
 import { Buyers } from './collections/Buyers';
 import { Products } from './collections/Products';
-import { RFQs } from './collections/RFQs';
-import { Quotes } from './collections/Quotes';
-import { Inquiries } from './collections/Inquiries';
-import { Messages } from './collections/Messages';
-import { SampleRequests } from './collections/SampleRequests';
 import { ProductCatalogs } from './collections/ProductCatalogs';
 import { Orders } from './collections/Orders';
-import { BdoConversations } from './collections/BdoConversations';
-import { BdoChatMessages } from './collections/BdoChatMessages';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -53,6 +46,27 @@ function extraCsrfOrigins(): string[] {
   return raw.split(',').map((s) => normalizeOrigin(s)).filter(Boolean);
 }
 
+/**
+ * Vercel sets these per deployment so the browser Origin always matches csrf somewhere,
+ * even when `NEXT_PUBLIC_APP_URL` points at a different canonical host (SSR still works → confused “I’m logged in”).
+ */
+function vercelAutoCsrfOrigins(): string[] {
+  const urls: string[] = [];
+  const hostToOrigin = (h: string) => {
+    const t = h.trim();
+    if (!t) return;
+    if (/^https?:\/\//i.test(t)) urls.push(normalizeOrigin(t));
+    else urls.push(normalizeOrigin(`https://${t}`));
+  };
+
+  hostToOrigin(process.env.VERCEL_URL || '');
+  const branch = process.env.VERCEL_BRANCH_URL?.trim();
+  if (branch) hostToOrigin(branch);
+  hostToOrigin(process.env.VERCEL_PROJECT_PRODUCTION_URL || '');
+
+  return [...new Set(urls)];
+}
+
 export default buildConfig({
   admin: {
     user: Users.slug,
@@ -66,15 +80,8 @@ export default buildConfig({
     Vendors,
     Buyers,
     Products,
-    RFQs,
-    Quotes,
-    Inquiries,
-    Messages,
-    SampleRequests,
     ProductCatalogs,
     Orders,
-    BdoConversations,
-    BdoChatMessages,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
@@ -84,8 +91,8 @@ export default buildConfig({
   db: mongooseAdapter({
     url: process.env.DATABASE_URL || '',
   }),
-  // Exact-match CSRF list; `sanitize` also appends `serverURL`
-  csrf: extraCsrfOrigins(),
+  // Payload cookie JWT checks `csrf.indexOf(Request Origin)` exactly; sanitize also appends `serverURL`.
+  csrf: [...extraCsrfOrigins(), ...vercelAutoCsrfOrigins()],
   serverURL: resolvedServerURL(),
   sharp,
   // Email configuration will be added when @payloadcms/email-nodemailer is installed

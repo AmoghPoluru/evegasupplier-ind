@@ -6,8 +6,6 @@ import { buyersRouter } from './buyers';
 import { productsRouter } from './products';
 import { checkoutRouter } from './checkout';
 import { adminRouter } from './admin';
-import { chatRouter } from './chat';
-
 export const appRouter = createTRPCRouter({
   auth: authRouter,
   vendors: vendorsRouter,
@@ -15,7 +13,6 @@ export const appRouter = createTRPCRouter({
   products: productsRouter,
   checkout: checkoutRouter,
   admin: adminRouter,
-  chat: chatRouter,
   hello: baseProcedure
     .input(
       z.object({

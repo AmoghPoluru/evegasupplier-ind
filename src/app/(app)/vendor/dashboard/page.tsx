@@ -47,12 +47,6 @@ export default async function VendorDashboardPage() {
               >
                 View All Buyers
               </Link>
-              <Link
-                href="/vendor/rfqs"
-                className="block text-sm text-blue-600 hover:underline"
-              >
-                View RFQs
-              </Link>
             </div>
           </CardContent>
         </Card>

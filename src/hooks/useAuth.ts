@@ -73,8 +73,7 @@ export function useAuth() {
       await queryClient.invalidateQueries({ queryKey: [['auth', 'session']] });
       const role = (data.user as { role?: string } | undefined)?.role;
       let next = '/';
-      if (role === 'bdo') next = '/bdo/dashboard';
-      else if (role === 'vendor') next = '/vendor/dashboard';
+      if (role === 'vendor') next = '/vendor/dashboard';
       router.push(next);
     },
   });

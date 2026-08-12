@@ -8,8 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RevenueChart } from './RevenueChart';
 import { OrderStats } from './OrderStats';
 import { ProductPerformance } from './ProductPerformance';
-import { RFQStats } from './RFQStats';
-import { InquiryStats } from './InquiryStats';
 import { Download } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 
@@ -34,14 +32,11 @@ export function AnalyticsDashboard() {
   const revenueData = trpc.vendors.analytics.revenue.useQuery({ startDate, endDate });
   const orderStatsData = trpc.vendors.analytics.orderStats.useQuery({ startDate, endDate });
   const productData = trpc.vendors.analytics.productPerformance.useQuery({ startDate, endDate, limit: 1000 });
-  const rfqData = trpc.vendors.analytics.rfqStats.useQuery({ startDate, endDate });
-  const inquiryData = trpc.vendors.analytics.inquiryStats.useQuery({ startDate, endDate });
 
-  const handleExport = (format: 'csv' | 'excel') => {
+  const handleExport = () => {
     try {
       let csvContent = '';
-      
-      // Revenue data
+
       if (revenueData.data) {
         csvContent += 'Revenue Data\n';
         csvContent += 'Date,Revenue\n';
@@ -51,7 +46,6 @@ export function AnalyticsDashboard() {
         csvContent += `\nTotal Revenue,${revenueData.data.totalRevenue.toFixed(2)}\n\n`;
       }
 
-      // Order stats
       if (orderStatsData.data) {
         csvContent += 'Order Statistics\n';
         csvContent += 'Metric,Value\n';
@@ -66,47 +60,19 @@ export function AnalyticsDashboard() {
         csvContent += '\n';
       }
 
-      // Product performance
       if (productData.data) {
         csvContent += 'Product Performance\n';
         csvContent += 'Product Name,Sales Count,Revenue\n';
         productData.data.forEach((product) => {
           csvContent += `${product.name},${product.salesCount},${product.revenue.toFixed(2)}\n`;
         });
-        csvContent += '\n';
       }
 
-      // RFQ stats
-      if (rfqData.data) {
-        csvContent += 'RFQ Statistics\n';
-        csvContent += 'Metric,Value\n';
-        csvContent += `Total RFQs,${rfqData.data.totalRFQs}\n`;
-        csvContent += `Quotes Submitted,${rfqData.data.quotesSubmitted}\n`;
-        csvContent += `Quotes Accepted,${rfqData.data.quotesAccepted}\n`;
-        csvContent += `Acceptance Rate,${rfqData.data.quoteAcceptanceRate.toFixed(2)}%\n`;
-        csvContent += `Average Quote Value,${rfqData.data.averageQuoteValue.toFixed(2)}\n`;
-        csvContent += '\n';
-      }
-
-      // Inquiry stats
-      if (inquiryData.data) {
-        csvContent += 'Inquiry Statistics\n';
-        csvContent += 'Metric,Value\n';
-        csvContent += `Total Inquiries,${inquiryData.data.totalInquiries}\n`;
-        csvContent += `Average Response Time,${inquiryData.data.averageResponseTime ? inquiryData.data.averageResponseTime.toFixed(2) + ' hours' : 'N/A'}\n`;
-        csvContent += '\nInquiries by Status\n';
-        csvContent += 'Status,Count\n';
-        Object.entries(inquiryData.data.inquiriesByStatus).forEach(([status, count]) => {
-          csvContent += `${status},${count}\n`;
-        });
-      }
-
-      // Create blob and download
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `analytics-export-${format === 'csv' ? new Date().toISOString().split('T')[0] : 'data'}.csv`);
+      link.setAttribute('download', `analytics-export-${new Date().toISOString().split('T')[0]}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -119,7 +85,6 @@ export function AnalyticsDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Date Range Selector */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -139,33 +104,18 @@ export function AnalyticsDashboard() {
                   <SelectItem value="custom">Custom range</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>
+              <Button variant="outline" size="sm" onClick={handleExport}>
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleExport('excel')}>
-                <Download className="h-4 w-4 mr-2" />
-                Export Excel
               </Button>
             </div>
           </div>
         </CardHeader>
       </Card>
 
-      {/* Revenue Chart */}
       <RevenueChart startDate={startDate} endDate={endDate} />
-
-      {/* Order Statistics */}
       <OrderStats startDate={startDate} endDate={endDate} />
-
-      {/* Product Performance */}
       <ProductPerformance startDate={startDate} endDate={endDate} />
-
-      {/* RFQ Statistics */}
-      <RFQStats startDate={startDate} endDate={endDate} />
-
-      {/* Inquiry Statistics */}
-      <InquiryStats startDate={startDate} endDate={endDate} />
     </div>
   );
 }

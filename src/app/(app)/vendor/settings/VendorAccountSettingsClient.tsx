@@ -350,7 +350,7 @@ export function VendorAccountSettingsClient() {
               name="responseTime"
               render={({ field }) => (
                 <FormItem className="sm:col-span-2">
-                  <FormLabel>Typical inquiry response time</FormLabel>
+                  <FormLabel>Typical response time</FormLabel>
                   <FormControl>
                     <OptionalSelect
                       value={field.value}
