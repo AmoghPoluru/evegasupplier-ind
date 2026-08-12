@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cart-store';
 import { toast } from 'sonner';
-import type { Product, Vendor } from '@/payload-types';
+import type { Product, Supplier } from '@/payload-types';
 import {
   firstProductImageUrl,
   nextImageUnoptimizedForSrc,
@@ -38,7 +38,7 @@ function specRows(product: Product): { label: string; value: string }[] {
 export function ProductGridCard({ product }: ProductGridCardProps) {
   const { addItem } = useCartStore();
 
-  const supplier: Vendor | null =
+  const supplier: Supplier | null =
     product.supplier && typeof product.supplier === 'object' ? product.supplier : null;
   const imageUrl = firstProductImageUrl(product.images);
   const rows = specRows(product);

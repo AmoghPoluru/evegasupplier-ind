@@ -116,7 +116,7 @@ export const checkoutRouter = createTRPCRouter({
 
       for (const [supplierId, cartItems] of itemsBySupplier) {
         const vendor = await ctx.payload.findByID({
-          collection: 'vendors',
+          collection: 'suppliers',
           id: supplierId,
           depth: 0,
         });

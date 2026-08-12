@@ -61,7 +61,7 @@ export const Users: CollectionConfig = {
     {
       name: 'supplierProfile',
       type: 'join',
-      collection: 'vendors',
+      collection: 'suppliers',
       on: 'user',
       admin: {
         description:

@@ -9,7 +9,7 @@ import sharp from 'sharp';
 import { blobReadWriteToken } from '@/lib/blob-token';
 import { Users } from './collections/Users';
 import { Media } from './collections/Media';
-import { Vendors } from './collections/Vendors';
+import { Suppliers } from './collections/Suppliers';
 import { Buyers } from './collections/Buyers';
 import { Products } from './collections/Products';
 import { ProductCatalogs } from './collections/ProductCatalogs';
@@ -77,7 +77,7 @@ export default buildConfig({
   collections: [
     Users,
     Media,
-    Vendors,
+    Suppliers,
     Buyers,
     Products,
     ProductCatalogs,

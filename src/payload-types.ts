@@ -69,7 +69,7 @@ export interface Config {
   collections: {
     users: User;
     media: Media;
-    vendors: Vendor;
+    suppliers: Supplier;
     buyers: Buyer;
     products: Product;
     'product-catalogs': ProductCatalog;
@@ -81,14 +81,14 @@ export interface Config {
   };
   collectionsJoins: {
     users: {
-      supplierProfile: 'vendors';
+      supplierProfile: 'suppliers';
       buyerCompanyProfile: 'buyers';
     };
   };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
-    vendors: VendorsSelect<false> | VendorsSelect<true>;
+    suppliers: SuppliersSelect<false> | SuppliersSelect<true>;
     buyers: BuyersSelect<false> | BuyersSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
     'product-catalogs': ProductCatalogsSelect<false> | ProductCatalogsSelect<true>;
@@ -155,7 +155,7 @@ export interface User {
    * Supplier/vendor company profile where this user is the owner (vendors.user → this user). At most one per user.
    */
   supplierProfile?: {
-    docs?: (string | Vendor)[];
+    docs?: (string | Supplier)[];
     hasNextPage?: boolean;
     totalDocs?: number;
   };
@@ -189,9 +189,9 @@ export interface User {
  * B2B supplier/vendor profiles
  *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "vendors".
+ * via the `definition` "suppliers".
  */
-export interface Vendor {
+export interface Supplier {
   id: string;
   /**
    * User account linked to this vendor profile
@@ -602,7 +602,7 @@ export interface Product {
   /**
    * Vendor/supplier offering this product
    */
-  supplier: string | Vendor;
+  supplier: string | Supplier;
   /**
    * Public URL for the real upstream supplier or product source. The linked Vendor is the platform “super supplier”.
    */
@@ -723,7 +723,7 @@ export interface ProductCatalog {
   /**
    * Vendor/supplier who owns this catalog
    */
-  supplier: string | Vendor;
+  supplier: string | Supplier;
   /**
    * Products included in this catalog
    */
@@ -762,7 +762,7 @@ export interface Order {
   /**
    * Vendor/supplier fulfilling this order
    */
-  supplier: string | Vendor;
+  supplier: string | Supplier;
   /**
    * Type of order
    */
@@ -911,8 +911,8 @@ export interface PayloadLockedDocument {
         value: string | Media;
       } | null)
     | ({
-        relationTo: 'vendors';
-        value: string | Vendor;
+        relationTo: 'suppliers';
+        value: string | Supplier;
       } | null)
     | ({
         relationTo: 'buyers';
@@ -1066,9 +1066,9 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "vendors_select".
+ * via the `definition` "suppliers_select".
  */
-export interface VendorsSelect<T extends boolean = true> {
+export interface SuppliersSelect<T extends boolean = true> {
   user?: T;
   accountName?: T;
   accountEmail?: T;

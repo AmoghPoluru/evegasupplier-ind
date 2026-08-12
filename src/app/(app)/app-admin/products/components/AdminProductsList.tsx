@@ -36,7 +36,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Product, Vendor } from "@/payload-types";
+import type { Product, Supplier } from "@/payload-types";
 import {
   dateInputToIso,
   validatedOnToInputValue,
@@ -67,7 +67,7 @@ function draftFromProduct(p: Product): RowDraft {
 function supplierCompanyName(supplier: Product["supplier"]): string {
   if (!supplier) return "—";
   if (typeof supplier === "string") return supplier;
-  return (supplier as Vendor).companyName || "—";
+  return (supplier as Supplier).companyName || "—";
 }
 
 function isRowDirty(p: Product, d: RowDraft): boolean {

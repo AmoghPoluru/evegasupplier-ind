@@ -120,14 +120,14 @@ export async function ensureSubbuBdoUserAndAssignAll(payload?: Payload): Promise
   let vendorCount = 0;
   for (;;) {
     const res = await p.find({
-      collection: "vendors",
+      collection: "suppliers",
       limit: pageSize,
       page,
       depth: 0,
     });
     for (const doc of res.docs) {
       await p.update({
-        collection: "vendors",
+        collection: "suppliers",
         id: doc.id,
         data: { bdo: bdoId, bdoAssignedAt: assignedAt },
         overrideAccess: true,
@@ -170,7 +170,7 @@ export async function seedDressSuppliers(payload?: Payload) {
   const p = payload ?? (await getPayload({ config }));
 
   const existing = await p.find({
-    collection: "vendors",
+    collection: "suppliers",
     where: { companyName: { equals: "Silk Road Garments Co." } },
     limit: 1,
   });
@@ -202,7 +202,7 @@ export async function seedDressSuppliers(payload?: Payload) {
   });
 
   const vendor1 = await p.create({
-    collection: "vendors",
+    collection: "suppliers",
     data: {
       user: vendor1User.id,
       companyName: "Silk Road Garments Co.",
@@ -229,7 +229,7 @@ export async function seedDressSuppliers(payload?: Payload) {
   });
 
   const vendor2 = await p.create({
-    collection: "vendors",
+    collection: "suppliers",
     data: {
       user: vendor2User.id,
       companyName: "Elegance Fashion Wholesale Ltd.",

@@ -65,19 +65,19 @@ export const adminRouter = createTRPCRouter({
         ordersOpen,
         revenueOrders,
       ] = await Promise.all([
-        payload.find({ collection: 'vendors', limit: 0, where: {} }),
+        payload.find({ collection: 'suppliers', limit: 0, where: {} }),
         payload.find({
-          collection: 'vendors',
+          collection: 'suppliers',
           limit: 0,
           where: { status: { equals: 'pending' } },
         }),
         payload.find({
-          collection: 'vendors',
+          collection: 'suppliers',
           limit: 0,
           where: { status: { exists: false } },
         }),
         payload.find({
-          collection: 'vendors',
+          collection: 'suppliers',
           limit: 0,
           where: { status: { equals: 'approved' } },
         }),
@@ -168,7 +168,7 @@ export const adminRouter = createTRPCRouter({
         // Find vendors with status 'pending' OR status is null/undefined (treat as pending)
         // First, get all vendors and filter in memory to handle null/undefined status
         const allVendors = await payload.find({
-          collection: "vendors",
+          collection: "suppliers",
           limit: 1000, // Get a large batch to filter
           sort: "-createdAt",
         });
@@ -243,7 +243,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         const result = await payload.find({
-          collection: "vendors",
+          collection: "suppliers",
           where,
           limit: input.limit,
           page: input.page,
@@ -296,7 +296,7 @@ export const adminRouter = createTRPCRouter({
         const payload = ctx.payload;
 
         const vendor = await payload.findByID({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
           depth: 2,
         });
@@ -321,7 +321,7 @@ export const adminRouter = createTRPCRouter({
 
         // Check if vendor exists
         const vendor = await payload.findByID({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
         });
 
@@ -334,7 +334,7 @@ export const adminRouter = createTRPCRouter({
 
         // Update vendor
         const updated = await payload.update({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
           data: {
             status: "approved",
@@ -364,7 +364,7 @@ export const adminRouter = createTRPCRouter({
 
         // Check if vendor exists
         const vendor = await payload.findByID({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
         });
 
@@ -387,7 +387,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         const updated = await payload.update({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
           data: updateData,
         });
@@ -413,7 +413,7 @@ export const adminRouter = createTRPCRouter({
         const payload = ctx.payload;
 
         const vendor = await payload.findByID({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
         });
 
@@ -434,7 +434,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         const updated = await payload.update({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
           data: updateData,
         });
@@ -455,7 +455,7 @@ export const adminRouter = createTRPCRouter({
         const payload = ctx.payload;
 
         const vendor = await payload.findByID({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
         });
 
@@ -467,7 +467,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         const updated = await payload.update({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
           data: {
             status: "approved",
@@ -493,7 +493,7 @@ export const adminRouter = createTRPCRouter({
         const payload = ctx.payload;
 
         const result = await payload.find({
-          collection: "vendors",
+          collection: "suppliers",
           limit: input.limit,
           sort: "-createdAt",
         });
@@ -525,7 +525,7 @@ export const adminRouter = createTRPCRouter({
         }
 
         const vendor = await payload.update({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
           data: cleanData as any,
         });
@@ -546,7 +546,7 @@ export const adminRouter = createTRPCRouter({
         const payload = ctx.payload;
 
         const vendor = await payload.findByID({
-          collection: "vendors",
+          collection: "suppliers",
           id: input.vendorId,
           depth: 1,
         });
@@ -657,7 +657,7 @@ export const adminRouter = createTRPCRouter({
 
           // 4. Delete supplier profile
           await payload.delete({
-            collection: "vendors",
+            collection: "suppliers",
             id: input.vendorId,
           });
           deletionSummary.supplier = true;
@@ -1000,7 +1000,7 @@ export const adminRouter = createTRPCRouter({
           // 3. Check if user has other profiles (supplier/vendor profile)
           if (userId) {
             const vendorProfile = await payload.find({
-              collection: "vendors",
+              collection: "suppliers",
               where: {
                 user: { equals: userId },
               },
