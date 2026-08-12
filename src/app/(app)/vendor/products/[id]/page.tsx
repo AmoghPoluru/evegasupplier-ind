@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Edit, Trash2, Copy, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { productImageSrc, nextImageUnoptimizedForSrc } from '@/lib/media-url';
+import { productImageSrc } from '@/lib/media-url';
 
 export default async function ProductDetailPage({
   params,
@@ -87,7 +87,6 @@ export default async function ProductDetailPage({
                           src={imageUrl}
                           alt={`Product image ${index + 1}`}
                           fill
-                          unoptimized={nextImageUnoptimizedForSrc(imageUrl)}
                           className="object-cover"
                         />
                       </div>

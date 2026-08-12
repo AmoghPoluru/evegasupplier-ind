@@ -14,7 +14,6 @@ import { Separator } from '@/components/ui/separator';
 import { ShoppingCart, Plus, Minus, Trash2, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { nextImageUnoptimizedForSrc } from '@/lib/media-url';
 
 interface CartDrawerProps {
   open: boolean;
@@ -78,7 +77,6 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                           src={imageUrl}
                           alt={item.product.title}
                           fill
-                          unoptimized={nextImageUnoptimizedForSrc(imageUrl)}
                           className="object-cover"
                         />
                       ) : (

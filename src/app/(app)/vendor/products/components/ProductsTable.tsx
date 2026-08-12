@@ -31,7 +31,7 @@ import { trpc } from '@/trpc/client';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import Image from 'next/image';
-import { firstProductImageUrl, nextImageUnoptimizedForSrc } from '@/lib/media-url';
+import { firstProductImageUrl } from '@/lib/media-url';
 
 interface Product {
   id: string;
@@ -185,7 +185,6 @@ export function ProductsTable({
                           src={imageUrl}
                           alt={getProductName(product)}
                           fill
-                          unoptimized={nextImageUnoptimizedForSrc(imageUrl)}
                           className="object-cover"
                         />
                       </div>

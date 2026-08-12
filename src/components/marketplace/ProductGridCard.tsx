@@ -6,11 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cart-store';
 import { toast } from 'sonner';
 import type { Product, Supplier } from '@/payload-types';
-import {
-  firstProductImageUrl,
-  nextImageUnoptimizedForSrc,
-  productImagesForCart,
-} from '@/lib/media-url';
+import { firstProductImageUrl, productImagesForCart } from '@/lib/media-url';
 
 interface ProductGridCardProps {
   product: Product;
@@ -75,7 +71,6 @@ export function ProductGridCard({ product }: ProductGridCardProps) {
               alt={product.title || 'Product'}
               width={600}
               height={800}
-              unoptimized={nextImageUnoptimizedForSrc(imageUrl)}
               className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
             />
           ) : (

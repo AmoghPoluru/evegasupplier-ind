@@ -9,11 +9,7 @@ import { ShoppingCart, Eye } from 'lucide-react';
 import { useCartStore } from '@/stores/cart-store';
 import { toast } from 'sonner';
 import type { Product } from '@/payload-types';
-import {
-  firstProductImageUrl,
-  nextImageUnoptimizedForSrc,
-  productImagesForCart,
-} from '@/lib/media-url';
+import { firstProductImageUrl, productImagesForCart } from '@/lib/media-url';
 
 interface ProductCardProps {
   product: Product;
@@ -64,7 +60,6 @@ export function ProductCard({ product }: ProductCardProps) {
               alt={product.title || 'Product'}
               width={400}
               height={400}
-              unoptimized={nextImageUnoptimizedForSrc(imageUrl)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
