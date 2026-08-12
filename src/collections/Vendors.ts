@@ -304,7 +304,7 @@ export const Vendors: CollectionConfig = {
         { label: 'Within 1 hour', value: '1h' },
       ],
       admin: {
-        description: 'Typical response time for inquiries',
+        description: 'Typical response time for customer messages',
       },
     },
     // Task 112: acceptSampleOrders

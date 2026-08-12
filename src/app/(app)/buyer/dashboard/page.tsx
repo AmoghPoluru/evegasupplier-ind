@@ -41,7 +41,7 @@ export default async function BuyerDashboardPage() {
         </Card>
       ) : null}
 
-      <StatsCards buyerId={buyer.id} />
+      <StatsCards />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <RecentOrdersWidget />
@@ -64,18 +64,6 @@ export default async function BuyerDashboardPage() {
                 className="block text-sm text-blue-600 hover:underline"
               >
                 Browse Products
-              </Link>
-              <Link
-                href="/buyer/rfqs/new"
-                className="block text-sm text-blue-600 hover:underline"
-              >
-                Create RFQ
-              </Link>
-              <Link
-                href="/buyer/inquiries/new"
-                className="block text-sm text-blue-600 hover:underline"
-              >
-                Send Inquiry
               </Link>
             </div>
           </CardContent>

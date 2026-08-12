@@ -25,7 +25,6 @@ import {
   Search,
   X,
   Shield,
-  MessageSquare,
 } from 'lucide-react';
 import { trpc } from '@/trpc/client';
 import { checkIfAdmin } from '@/lib/auth/admin-check';
@@ -47,7 +46,6 @@ export function Navbar() {
   const sessionUser = session?.user;
   const isAdmin = sessionUser ? checkIfAdmin(sessionUser as any) : false;
   const sessionRole = (sessionUser as { role?: string } | undefined)?.role;
-  const isBdo = sessionRole === 'bdo';
   const isVendorRole = sessionRole === 'vendor';
   
   // Track if component has mounted to prevent hydration mismatch
@@ -115,16 +113,14 @@ export function Navbar() {
   };
 
   const homeHref =
-    hasMounted && !isAdmin && isBdo
-      ? '/bdo/dashboard'
-      : hasMounted && !isAdmin && isVendorRole
-        ? '/vendor/dashboard'
-        : '/';
+    hasMounted && !isAdmin && isVendorRole
+      ? '/vendor/dashboard'
+      : '/';
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        {/* Logo/Brand — BDO-only staff land on coordinator dashboard */}
+        {/* Logo/Brand */}
         <Link href={homeHref} className="flex items-center space-x-2">
           <span className="text-xl font-bold">EvegaSupply</span>
         </Link>
@@ -137,7 +133,7 @@ export function Navbar() {
           >
             Home
           </Link>
-          {hasMounted && !isAdmin && (isBdo || isVendorRole) && (
+          {hasMounted && !isAdmin && isVendorRole && (
             <Link
               href="/?browse=1"
               className="text-sm font-medium transition-colors hover:text-primary"
@@ -160,16 +156,6 @@ export function Navbar() {
             >
               <Shield className="w-4 h-4" />
               Admin Dashboard
-            </Link>
-          )}
-
-          {hasMounted && (isBdo || isAdmin) && (
-            <Link
-              href="/bdo/dashboard"
-              className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary text-emerald-700"
-            >
-              <MessageSquare className="w-4 h-4" />
-              BDO dashboard
             </Link>
           )}
 
