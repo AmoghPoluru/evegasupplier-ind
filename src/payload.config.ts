@@ -1,12 +1,10 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
-import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob';
 import path from 'path';
 import { buildConfig } from 'payload';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 
-import { blobReadWriteToken } from '@/lib/blob-token';
 import { Users } from './collections/Users';
 import { Media } from './collections/Media';
 import { Suppliers } from './collections/Suppliers';
@@ -95,17 +93,5 @@ export default buildConfig({
   csrf: [...extraCsrfOrigins(), ...vercelAutoCsrfOrigins()],
   serverURL: resolvedServerURL(),
   sharp,
-  // Email configuration will be added when @payloadcms/email-nodemailer is installed
-  // email: nodemailerAdapter({ ... }),
-  plugins: [
-    // When `BLOB_READ_WRITE_TOKEN` is set (Vercel), uploads go to Blob and local `media/` is disabled.
-    // Without a token (typical local dev), the plugin no-ops and `staticDir: 'media'` still applies.
-    vercelBlobStorage({
-      collections: {
-        media: true,
-      },
-      // Missing/blank → plugin no-ops; Vercel then warns: uploads need `upload.adapter`.
-      token: blobReadWriteToken(),
-    }),
-  ],
+  plugins: [],
 });
