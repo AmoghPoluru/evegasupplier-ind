@@ -36,11 +36,8 @@ const SORT_OPTIONS = [
 
 type SortOption = (typeof SORT_OPTIONS)[number]['value'];
 
-const ALL_SUPPLIERS = 'all';
-
 function SuppliersMarketplaceList() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const limit = 20;
 
   const [searchInput, setSearchInput] = useState('');
@@ -59,8 +56,6 @@ function SuppliersMarketplaceList() {
     setPage(1);
   }
 
-  const { data: suppliers } = trpc.vendors.list.useQuery({ limit: 100 });
-
   const { data, isLoading, error } = trpc.products.list.useQuery({
     limit,
     page,
@@ -69,17 +64,6 @@ function SuppliersMarketplaceList() {
     sort,
     verified: verifiedOnly || undefined,
   });
-
-  const handleSupplierChange = (value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value === ALL_SUPPLIERS) {
-      params.delete('supplier');
-    } else {
-      params.set('supplier', value);
-    }
-    const query = params.toString();
-    router.replace(query ? `/?${query}` : '/');
-  };
 
   const products = data?.products ?? [];
   const totalPages = data?.totalPages ?? 0;
@@ -93,7 +77,6 @@ function SuppliersMarketplaceList() {
             <h1 className="text-lg font-bold">All products</h1>
             <p className="text-xs text-muted-foreground">
               {data ? `${data.totalDocs} products` : 'Loading products'}
-              {suppliers ? ` from ${suppliers.totalDocs} suppliers` : ''}
             </p>
           </div>
 
@@ -116,22 +99,6 @@ function SuppliersMarketplaceList() {
                 {SORT_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value} className="text-xs">
                     {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={supplierId ?? ALL_SUPPLIERS} onValueChange={handleSupplierChange}>
-              <SelectTrigger className="w-[180px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_SUPPLIERS} className="text-xs">
-                  All suppliers
-                </SelectItem>
-                {(suppliers?.vendors ?? []).map((vendor) => (
-                  <SelectItem key={vendor.id} value={vendor.id} className="text-xs">
-                    {vendor.companyName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -183,7 +150,7 @@ function SuppliersMarketplaceList() {
               <div className="text-center py-12">
                 <p className="text-lg font-semibold text-foreground mb-2">No products found</p>
                 <p className="text-sm text-muted-foreground">
-                  Try clearing the search, supplier or verified filters.
+                  Try clearing the search or verified filters.
                 </p>
               </div>
             </CardContent>
