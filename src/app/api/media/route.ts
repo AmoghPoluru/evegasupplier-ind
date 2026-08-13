@@ -5,6 +5,10 @@ import { REST_GET } from '@payloadcms/next/routes';
 import { createMediaFromBlob } from '@/lib/create-media-from-blob';
 import { mediaStorage } from '@/lib/media-storage';
 import { resolveMediaDisplayUrl, type MediaLike } from '@/lib/media-url';
+import {
+  enhanceProductImageBuffer,
+  wantsImageEnhance,
+} from '@/lib/enhance-product-image';
 
 export const maxDuration = 120;
 export const runtime = 'nodejs';
@@ -153,8 +157,22 @@ export async function POST(req: NextRequest) {
     }
 
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const stored = await mediaStorage().put(buffer, file.name, file.type);
+    let buffer = Buffer.from(bytes);
+    let filename = file.name;
+    let mimeType = file.type;
+
+    if (wantsImageEnhance(formData.get('enhance'))) {
+      try {
+        const enhanced = await enhanceProductImageBuffer(buffer, file.name);
+        buffer = Buffer.from(enhanced.buffer);
+        filename = enhanced.filename;
+        mimeType = enhanced.mimeType;
+      } catch (enhanceErr) {
+        console.warn('Image enhance failed; uploading original:', enhanceErr);
+      }
+    }
+
+    const stored = await mediaStorage().put(buffer, filename, mimeType);
     const media = await createMediaFromBlob(payload, stored, file.name);
 
     return NextResponse.json({ doc: media });

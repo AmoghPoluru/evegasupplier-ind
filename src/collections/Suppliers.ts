@@ -134,6 +134,24 @@ export const Suppliers: CollectionConfig = {
         description: 'Legal or trading name of the company',
       },
     },
+    {
+      name: 'openaiApiKey',
+      type: 'text',
+      label: 'OPENAI_API_KEY',
+      admin: {
+        description:
+          'OpenAI API key for AI product titles/descriptions from this supplier photos during mass upload. Not read from server env when set here. Never shown on the public marketplace.',
+      },
+      access: {
+        // Collection read is public — keep this secret off the marketplace API.
+        read: ({ req }) => {
+          const role = (req.user as { role?: string } | undefined)?.role;
+          return role === 'admin' || role === 'bdo';
+        },
+        update: ({ req }) =>
+          (req.user as { role?: string } | undefined)?.role === 'admin',
+      },
+    },
     // Task 98: companyType
     {
       name: 'companyType',
@@ -536,15 +554,48 @@ export const Suppliers: CollectionConfig = {
         }
         return data;
       },
-      async ({ data, req }) => {
+      async ({ data, req, originalDoc, operation }) => {
         if (!req?.payload || !data) return data;
         const bdoRef = data.bdo;
         if (bdoRef === undefined || bdoRef === null || bdoRef === '') return data;
-        const id = typeof bdoRef === 'string' ? bdoRef : (bdoRef as { id: string }).id;
-        const u = await req.payload.findByID({ collection: 'users', id });
-        const role = (u as { role?: string }).role;
-        if (role !== 'admin' && role !== 'bdo') {
-          throw new Error('BDO field must reference a user with role Admin or BDO.');
+        const id =
+          typeof bdoRef === 'string' ? bdoRef : (bdoRef as { id: string }).id;
+        if (!id) return data;
+
+        const oldId =
+          operation === 'update' && originalDoc
+            ? typeof originalDoc.bdo === 'object' && originalDoc.bdo != null
+              ? (originalDoc.bdo as { id: string }).id
+              : (originalDoc.bdo as string | null | undefined)
+            : null;
+
+        try {
+          const u = await req.payload.findByID({
+            collection: 'users',
+            id,
+            depth: 0,
+          });
+          const role = (u as { role?: string }).role;
+          if (role !== 'admin' && role !== 'bdo') {
+            // Stale/invalid existing ref: clear so unrelated edits can save.
+            if (oldId && oldId === id) {
+              data.bdo = null;
+              data.bdoAssignedAt = null;
+              return data;
+            }
+            throw new Error(
+              'BDO field must reference a user with role Admin or BDO.',
+            );
+          }
+        } catch (e: unknown) {
+          if (e instanceof Error && e.message.includes('Admin or BDO')) throw e;
+          // Missing user: clear stale assignment instead of blocking the save.
+          if (oldId && oldId === id) {
+            data.bdo = null;
+            data.bdoAssignedAt = null;
+            return data;
+          }
+          throw new Error('BDO field must reference a valid Admin or BDO user.');
         }
         return data;
       },

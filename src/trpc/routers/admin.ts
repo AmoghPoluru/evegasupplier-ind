@@ -293,6 +293,9 @@ export const adminRouter = createTRPCRouter({
           collection: "suppliers",
           id: input.vendorId,
           depth: 2,
+          overrideAccess: true,
+          showHiddenFields: true,
+          user: ctx.user,
         });
 
         if (!vendor) {
@@ -347,17 +350,37 @@ export const adminRouter = createTRPCRouter({
           }
         }
 
-        const vendor = await payload.update({
-          collection: "suppliers",
-          id: input.vendorId,
-          data: cleanData as any,
-        });
+        // Empty string → clear optional text fields (Payload prefers null/omit)
+        if (
+          typeof cleanData.openaiApiKey === "string" &&
+          !cleanData.openaiApiKey.trim()
+        ) {
+          cleanData.openaiApiKey = null;
+        }
 
-        return {
-          vendor,
-          success: true,
-          message: "Supplier updated successfully",
-        };
+        try {
+          const vendor = await payload.update({
+            collection: "suppliers",
+            id: input.vendorId,
+            data: cleanData as any,
+            overrideAccess: true,
+            user: ctx.user,
+          });
+
+          return {
+            vendor,
+            success: true,
+            message: "Supplier updated successfully",
+          };
+        } catch (e: unknown) {
+          const message =
+            e instanceof Error ? e.message : "Failed to update supplier";
+          console.error("[admin.vendors.update]", message, e);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message,
+          });
+        }
       }),
 
     /**
@@ -905,7 +928,8 @@ export const adminRouter = createTRPCRouter({
           limit: input.limit,
           page: input.page,
           sort: input.sort,
-          depth: 1,
+          // Populate supplier + images → media (for list thumbnails)
+          depth: 2,
         });
 
         const totalPages = Math.max(
@@ -937,6 +961,108 @@ export const adminRouter = createTRPCRouter({
           });
         }
         return product;
+      }),
+
+    /**
+     * OpenAI Vision: suggest title + description from an uploaded media image.
+     * Uses the supplier document's openaiApiKey only (not server env).
+     */
+    suggestFromImage: adminProcedure
+      .input(
+        z.object({
+          mediaId: z.string().min(1),
+          fallbackTitle: z.string().min(1).optional(),
+          /** Required: load OPENAI_API_KEY from this supplier record. */
+          supplierId: z.string().min(1),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const media = await ctx.payload.findByID({
+          collection: "media",
+          id: input.mediaId,
+          depth: 0,
+          overrideAccess: true,
+        });
+        if (!media) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Media not found",
+          });
+        }
+
+        const { resolveMediaDisplayUrl } = await import("@/lib/media-url");
+        const { suggestProductCopyFromImageUrl } = await import(
+          "@/lib/openai-product-from-image"
+        );
+
+        const imageUrl = resolveMediaDisplayUrl(media as any, {
+          allowIdProxy: false,
+        });
+        if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Media has no public image URL for AI (need Blob CDN URL).",
+          });
+        }
+
+        const fallback =
+          input.fallbackTitle?.trim() ||
+          (typeof media.alt === "string" && media.alt.trim()) ||
+          "Product";
+
+        let supplierKey: string | null = null;
+        try {
+          const supplier = await ctx.payload.findByID({
+            collection: "suppliers",
+            id: input.supplierId,
+            depth: 0,
+            overrideAccess: true,
+            showHiddenFields: true,
+            user: ctx.user,
+          });
+          const raw = supplier?.openaiApiKey;
+          supplierKey =
+            typeof raw === "string" && raw.trim() ? raw.trim() : null;
+        } catch {
+          supplierKey = null;
+        }
+
+        if (!supplierKey) {
+          return {
+            title: fallback,
+            description: "",
+            unitPrice: null as number | null,
+            usedAi: false as const,
+            skipReason:
+              "No OPENAI_API_KEY on this supplier — set it in Edit Supplier",
+            keySource: "none" as const,
+          };
+        }
+
+        try {
+          const copy = await suggestProductCopyFromImageUrl(
+            imageUrl,
+            fallback,
+            { apiKey: supplierKey, allowEnvFallback: false },
+          );
+          return {
+            title: copy.title,
+            description: copy.description,
+            unitPrice: copy.unitPrice,
+            usedAi: true as const,
+            skipReason: null as string | null,
+            keySource: "supplier" as const,
+          };
+        } catch (e: unknown) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message:
+              e instanceof Error
+                ? e.message
+                : "Failed to analyze image with AI",
+          });
+        }
       }),
 
     update: adminProcedure
@@ -1030,6 +1156,118 @@ export const adminRouter = createTRPCRouter({
         return { product, success: true as const };
       }),
 
+    /**
+     * Mass update list fields (spreadsheet / CSV / Save all).
+     */
+    bulkUpdate: adminProcedure
+      .input(
+        z.object({
+          items: z
+            .array(
+              z.object({
+                id: z.string().min(1),
+                title: z.string().min(1).optional(),
+                category: z.string().optional(),
+                unitPrice: z.number().min(0).nullable().optional(),
+                moq: z.number().int().min(0).nullable().optional(),
+                actualSupplierUrl: z
+                  .string()
+                  .max(2048)
+                  .optional()
+                  .refine(
+                    (v) =>
+                      !v ||
+                      v.trim() === "" ||
+                      /^https?:\/\/.+/i.test(v.trim()),
+                    {
+                      message:
+                        "Actual supplier URL must be empty or start with http:// or https://",
+                    },
+                  ),
+                validatedOn: z
+                  .string()
+                  .nullable()
+                  .optional()
+                  .refine(
+                    (v) =>
+                      v === undefined ||
+                      v === null ||
+                      v === "" ||
+                      !Number.isNaN(Date.parse(v)),
+                    {
+                      message:
+                        "Validated on must be a valid ISO date, empty, or null",
+                    },
+                  ),
+              }),
+            )
+            .min(1)
+            .max(200),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const payload = ctx.payload;
+        const updated: string[] = [];
+        const errors: Array<{ id: string; error: string }> = [];
+
+        for (const item of input.items) {
+          try {
+            const existing = await payload.findByID({
+              collection: "products",
+              id: item.id,
+            });
+            if (!existing) {
+              errors.push({ id: item.id, error: "Not found" });
+              continue;
+            }
+
+            const data: Record<string, unknown> = {};
+            if (item.title !== undefined) data.title = item.title;
+            if (item.category !== undefined) {
+              const c = item.category.trim();
+              data.category = c === "" ? null : c;
+            }
+            if (item.unitPrice !== undefined) data.unitPrice = item.unitPrice;
+            if (item.moq !== undefined) data.moq = item.moq;
+            if (item.actualSupplierUrl !== undefined) {
+              const u = item.actualSupplierUrl.trim();
+              data.actualSupplierUrl = u === "" ? null : u;
+            }
+            if (item.validatedOn !== undefined) {
+              if (item.validatedOn === null || item.validatedOn === "") {
+                data.validatedOn = null;
+              } else {
+                data.validatedOn = item.validatedOn;
+              }
+            }
+
+            if (Object.keys(data).length === 0) {
+              updated.push(item.id);
+              continue;
+            }
+
+            await payload.update({
+              collection: "products",
+              id: item.id,
+              data: data as any,
+            });
+            updated.push(item.id);
+          } catch (e: unknown) {
+            errors.push({
+              id: item.id,
+              error: e instanceof Error ? e.message : "Update failed",
+            });
+          }
+        }
+
+        return {
+          success: errors.length === 0,
+          updatedCount: updated.length,
+          updated,
+          errors: errors.length ? errors : undefined,
+        };
+      }),
+
     updateFull: adminProcedure
       .input(adminProductUpdateFullInputSchema)
       .mutation(async ({ ctx, input }) => {
@@ -1101,6 +1339,40 @@ export const adminRouter = createTRPCRouter({
         });
 
         return { success: true as const };
+      }),
+
+    bulkDelete: adminProcedure
+      .input(
+        z.object({
+          ids: z.array(z.string().min(1)).min(1).max(100),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const payload = ctx.payload;
+        const deleted: string[] = [];
+        const errors: Array<{ id: string; error: string }> = [];
+
+        for (const id of [...new Set(input.ids)]) {
+          try {
+            await payload.delete({
+              collection: "products",
+              id,
+            });
+            deleted.push(id);
+          } catch (e: unknown) {
+            errors.push({
+              id,
+              error: e instanceof Error ? e.message : "Delete failed",
+            });
+          }
+        }
+
+        return {
+          success: errors.length === 0,
+          deletedCount: deleted.length,
+          deleted,
+          errors: errors.length ? errors : undefined,
+        };
       }),
   }),
 
@@ -1319,6 +1591,29 @@ export const adminRouter = createTRPCRouter({
           limit: input.limit,
         };
       }),
+
+    /** Admin + BDO users that can be assigned as a supplier's BDO. */
+    listBdoCandidates: adminProcedure.query(async ({ ctx }) => {
+      const result = await ctx.payload.find({
+        collection: "users",
+        where: {
+          role: { in: ["admin", "bdo"] },
+        },
+        limit: 200,
+        sort: "name",
+        depth: 0,
+      });
+
+      return result.docs.map((user) => {
+        const view = toAdminUserView(user as Parameters<typeof toAdminUserView>[0]);
+        return {
+          id: view.id,
+          name: view.name,
+          email: view.email,
+          role: view.role,
+        };
+      });
+    }),
 
     getOne: adminProcedure
       .input(z.object({ userId: z.string() }))

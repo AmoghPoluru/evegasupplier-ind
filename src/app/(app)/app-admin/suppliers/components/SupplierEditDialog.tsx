@@ -23,6 +23,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { trpc } from '@/trpc/client';
 import { toast } from 'sonner';
 
+const BDO_NONE = '__none__';
+
+function relationId(value: unknown): string {
+  if (typeof value === 'string' && value) return value;
+  if (value && typeof value === 'object' && 'id' in value) {
+    const id = (value as { id?: unknown }).id;
+    if (typeof id === 'string' && id) return id;
+  }
+  return '';
+}
+
 interface SupplierEditDialogProps {
   supplierId: string;
   supplierName: string;
@@ -40,20 +51,31 @@ export function SupplierEditDialog({
 }: SupplierEditDialogProps) {
   const { data: supplier, isLoading } = trpc.admin.vendors.getOne.useQuery(
     { vendorId: supplierId },
-    { enabled: open && !!supplierId }
+    { enabled: open && !!supplierId },
   );
+
+  const { data: bdoCandidates = [] } =
+    trpc.admin.users.listBdoCandidates.useQuery(undefined, {
+      enabled: open,
+    });
 
   const [companyName, setCompanyName] = useState('');
   const [companyType, setCompanyType] = useState('');
   const [status, setStatus] = useState('');
   const [isActive, setIsActive] = useState(false);
+  const [bdoId, setBdoId] = useState(BDO_NONE);
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
 
   useEffect(() => {
     if (supplier) {
       setCompanyName(supplier.companyName || '');
       setCompanyType(supplier.companyType || '');
-      setStatus((supplier as any).status || 'pending');
-      setIsActive((supplier as any).isActive || false);
+      setStatus((supplier as { status?: string }).status || 'pending');
+      setIsActive(Boolean((supplier as { isActive?: boolean }).isActive));
+      setBdoId(relationId(supplier.bdo) || BDO_NONE);
+      setOpenaiApiKey(
+        typeof supplier.openaiApiKey === 'string' ? supplier.openaiApiKey : '',
+      );
     }
   }, [supplier]);
 
@@ -69,19 +91,29 @@ export function SupplierEditDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Build data object, only including defined values
+
     const updateData: Record<string, unknown> = {
       companyName,
       status: status || 'pending',
       isActive,
+      bdo: bdoId === BDO_NONE ? null : bdoId,
     };
-    
-    // Only include companyType if it has a value
+
     if (companyType) {
       updateData.companyType = companyType;
     }
-    
+
+    const key = openaiApiKey.trim();
+    if (key) {
+      updateData.openaiApiKey = key;
+    } else if (
+      typeof supplier?.openaiApiKey === 'string' &&
+      supplier.openaiApiKey.length > 0
+    ) {
+      // Explicitly clear a previously stored key
+      updateData.openaiApiKey = null;
+    }
+
     updateMutation.mutate({
       vendorId: supplierId,
       data: updateData,
@@ -89,6 +121,33 @@ export function SupplierEditDialog({
   };
 
   if (!open) return null;
+
+  // Keep current BDO in the list even if their role changed or they were soft-orphaned
+  const bdoOptions = [...bdoCandidates];
+  const currentBdoId = relationId(supplier?.bdo);
+  if (
+    currentBdoId &&
+    !bdoOptions.some((u) => u.id === currentBdoId) &&
+    supplier?.bdo &&
+    typeof supplier.bdo === 'object'
+  ) {
+    const orphan = supplier.bdo as {
+      id?: string;
+      name?: string | null;
+      email?: string | null;
+      role?: string | null;
+    };
+    if (orphan.id) {
+      bdoOptions.unshift({
+        id: orphan.id,
+        name: orphan.name ?? null,
+        email: orphan.email ?? '',
+        role: (orphan.role === 'admin' || orphan.role === 'bdo'
+          ? orphan.role
+          : 'bdo') as 'admin' | 'bdo',
+      });
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -131,6 +190,28 @@ export function SupplierEditDialog({
             </div>
 
             <div>
+              <Label htmlFor="bdo">BDO</Label>
+              <Select value={bdoId} onValueChange={setBdoId}>
+                <SelectTrigger id="bdo">
+                  <SelectValue placeholder="Assign a BDO" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BDO_NONE}>None</SelectItem>
+                  {bdoOptions.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {(user.name || user.email || user.id) +
+                        (user.role ? ` (${user.role})` : '')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Platform BDO coordinating this supplier. Admins and BDOs can be
+                assigned.
+              </p>
+            </div>
+
+            <div>
               <Label htmlFor="status">Status</Label>
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger>
@@ -154,6 +235,22 @@ export function SupplierEditDialog({
               <Label htmlFor="isActive" className="cursor-pointer">
                 Active (can sell products)
               </Label>
+            </div>
+
+            <div>
+              <Label htmlFor="openaiApiKey">OPENAI_API_KEY</Label>
+              <Input
+                id="openaiApiKey"
+                type="password"
+                autoComplete="off"
+                value={openaiApiKey}
+                onChange={(e) => setOpenaiApiKey(e.target.value)}
+                placeholder="sk-… (optional; used for AI titles on mass upload)"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Stored on this supplier and used for mass-upload AI titles/descriptions
+                (not the server .env key). Leave empty to skip AI.
+              </p>
             </div>
 
             <DialogFooter>
