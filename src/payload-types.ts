@@ -222,6 +222,10 @@ export interface Supplier {
    */
   companyName: string;
   /**
+   * Optional OpenAI API key for AI product titles/descriptions from this supplier's photos. Overrides the platform env key when set. Never shown on the public marketplace.
+   */
+  openaiApiKey?: string | null;
+  /**
    * Type of business entity
    */
   companyType?: ('manufacturer' | 'trading' | 'agent' | 'distributor' | 'other') | null;
@@ -1076,6 +1080,7 @@ export interface SuppliersSelect<T extends boolean = true> {
   bdo?: T;
   bdoAssignedAt?: T;
   companyName?: T;
+  openaiApiKey?: T;
   companyType?: T;
   yearEstablished?: T;
   annualRevenue?: T;
