@@ -14,7 +14,7 @@ export const Products: CollectionConfig = {
       if (!req.user) return false;
       if ((req.user as any).role === 'admin') return true;
       const vendors = await req.payload.find({
-        collection: 'vendors',
+        collection: 'suppliers',
         where: { user: { equals: req.user!.id } },
         limit: 1000,
       });
@@ -25,7 +25,7 @@ export const Products: CollectionConfig = {
       if (!req.user) return false;
       if ((req.user as any).role === 'admin') return true;
       const vendors = await req.payload.find({
-        collection: 'vendors',
+        collection: 'suppliers',
         where: { user: { equals: req.user!.id } },
         limit: 1000,
       });
@@ -53,7 +53,7 @@ export const Products: CollectionConfig = {
     {
       name: 'supplier',
       type: 'relationship',
-      relationTo: 'vendors',
+      relationTo: 'suppliers',
       required: true,
       admin: {
         description: 'Vendor/supplier offering this product',

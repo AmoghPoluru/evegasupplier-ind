@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
-import type { Order, User, Vendor } from "@/payload-types";
+import type { Order, User, Supplier } from "@/payload-types";
 
 const ORDER_STATUSES = [
   "pending",
@@ -65,7 +65,7 @@ function buyerLabel(buyer: Order["buyer"]): string {
 function supplierLabel(supplier: Order["supplier"]): string {
   if (!supplier) return "—";
   if (typeof supplier === "string") return supplier;
-  return (supplier as Vendor).companyName || supplier.id;
+  return (supplier as Supplier).companyName || supplier.id;
 }
 
 export function AdminOrdersList() {

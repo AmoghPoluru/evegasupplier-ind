@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Clock, CheckCircle2, Star, ArrowRight } from 'lucide-react';
 import { ProductCardHorizontal } from './ProductCardHorizontal';
-import type { Vendor, Product } from '@/payload-types';
+import type { Supplier, Product } from '@/payload-types';
 
 interface VendorSectionProps {
-  vendor: Vendor & { products?: Product[] };
+  vendor: Supplier & { products?: Product[] };
 }
 
 /**

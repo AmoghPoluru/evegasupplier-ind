@@ -8,7 +8,6 @@ import {
   UserCircle,
   Package,
   DollarSign,
-  AlertCircle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -22,7 +21,7 @@ export function StatsCards() {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {[...Array(8)].map((_, i) => (
+        {[...Array(7)].map((_, i) => (
           <Card key={i}>
             <CardHeader className="pb-2">
               <Skeleton className="h-4 w-24" />
@@ -52,19 +51,10 @@ export function StatsCards() {
     {
       title: "Suppliers",
       value: stats.vendors.total,
-      sub: `${stats.vendors.pending} pending · ${stats.vendors.approved} approved`,
       icon: Users,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
       link: "/app-admin/suppliers",
-    },
-    {
-      title: "Pending suppliers",
-      value: stats.vendors.pending,
-      icon: AlertCircle,
-      color: "text-yellow-600",
-      bgColor: "bg-yellow-50",
-      link: "/app-admin/vendors/pending",
     },
     {
       title: "Buyers",

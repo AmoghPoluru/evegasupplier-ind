@@ -1,8 +1,10 @@
 import type { CollectionConfig } from 'payload';
 import { getVendorMirrorFromUser } from '@/lib/sync-vendor-account-mirror';
 
-export const Vendors: CollectionConfig = {
-  slug: 'vendors',
+export const Suppliers: CollectionConfig = {
+  slug: 'suppliers',
+  /** Existing MongoDB data lives in the legacy `vendors` collection until migrated. */
+  dbName: 'vendors',
   admin: {
     useAsTitle: 'companyName',
     defaultColumns: ['companyName', 'user', 'bdo', 'accountEmail', 'companyType', 'verifiedSupplier', 'createdAt'],

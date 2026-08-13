@@ -7,8 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, Clock, CheckCircle2, Star, Loader2, AlertCircle, Building2, Users, DollarSign } from 'lucide-react';
 import { ProductGrid } from '@/components/marketplace/ProductGrid';
 import Image from 'next/image';
-import { nextImageUnoptimizedForSrc } from '@/lib/media-url';
 import { use } from 'react';
+import { productImageSrc } from '@/lib/media-url';
 
 interface VendorDetailPageProps {
   params: Promise<{
@@ -68,22 +68,12 @@ export default function VendorDetailPage({ params }: VendorDetailPageProps) {
   const vendor = vendorData;
   const products = vendor.products || [];
 
-  // Get vendor logo/image
-  const getLogoUrl = () => {
-    if (!vendor.companyPhotos || !Array.isArray(vendor.companyPhotos) || vendor.companyPhotos.length === 0) {
-      return null;
-    }
-    const firstPhoto = vendor.companyPhotos[0];
-    if (typeof firstPhoto === 'string') {
-      return firstPhoto;
-    }
-    if (typeof firstPhoto === 'object' && firstPhoto !== null && 'url' in firstPhoto) {
-      return (firstPhoto as any).url;
-    }
-    return null;
-  };
-
-  const logoUrl = getLogoUrl();
+  const logoUrl =
+    vendor.companyPhotos &&
+    Array.isArray(vendor.companyPhotos) &&
+    vendor.companyPhotos.length > 0 ?
+      productImageSrc(vendor.companyPhotos[0])
+    : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -102,7 +92,6 @@ export default function VendorDetailPage({ params }: VendorDetailPageProps) {
                         alt={vendor.companyName || 'Company logo'}
                         width={96}
                         height={96}
-                        unoptimized={nextImageUnoptimizedForSrc(logoUrl)}
                         className="w-full h-full object-cover"
                       />
                     </div>

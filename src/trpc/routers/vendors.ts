@@ -18,7 +18,7 @@ async function getVendorIdFromSession(ctx: any): Promise<string | null> {
     if (!user) return null;
     
     const vendorsResult = await payload.find({
-      collection: 'vendors',
+      collection: 'suppliers',
       where: { user: { equals: user.id } },
       limit: 1,
     });
@@ -54,7 +54,7 @@ export const vendorsRouter = createTRPCRouter({
       }
 
       const result = await ctx.payload.find({
-        collection: 'vendors',
+        collection: 'suppliers',
         where: where as any,
         limit: input.limit,
         page: input.page,
@@ -73,7 +73,7 @@ export const vendorsRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const vendor = await ctx.payload.findByID({
-        collection: 'vendors',
+        collection: 'suppliers',
         id: input.id,
       });
       return vendor;
@@ -83,7 +83,7 @@ export const vendorsRouter = createTRPCRouter({
     .input(z.object({ userId: z.string() }))
     .query(async ({ ctx, input }) => {
       const result = await ctx.payload.find({
-        collection: 'vendors',
+        collection: 'suppliers',
         where: { user: { equals: input.userId } },
         limit: 1,
         depth: 0,
@@ -101,7 +101,7 @@ export const vendorsRouter = createTRPCRouter({
       }
 
       const vendorsResult = await payload.find({
-        collection: 'vendors',
+        collection: 'suppliers',
         where: { user: { equals: user.id } },
         limit: 1,
       });
@@ -129,13 +129,13 @@ export const vendorsRouter = createTRPCRouter({
       }
 
       await payload.update({
-        collection: 'vendors',
+        collection: 'suppliers',
         id: vendor.id,
         data: vendorPatch,
       });
 
       const updated = await payload.findByID({
-        collection: 'vendors',
+        collection: 'suppliers',
         id: vendor.id,
         depth: 0,
       });
@@ -203,7 +203,7 @@ export const vendorsRouter = createTRPCRouter({
         }
 
         const result = await ctx.payload.find({
-          collection: 'vendors',
+          collection: 'suppliers',
           where: where as any,
           limit: input.limit,
           page: input.page,
@@ -253,7 +253,7 @@ export const vendorsRouter = createTRPCRouter({
       .query(async ({ ctx, input }) => {
         try {
           const vendor = await ctx.payload.findByID({
-            collection: 'vendors',
+            collection: 'suppliers',
             id: input.id,
           });
 

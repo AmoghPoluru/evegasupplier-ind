@@ -8,11 +8,12 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith('/admin/vendors')) {
-    const target = pathname.replace(/^\/admin/, '/app-admin');
-    return NextResponse.redirect(new URL(target, request.url));
+    return NextResponse.redirect(new URL('/app-admin/suppliers', request.url));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  response.headers.set('x-pathname', pathname);
+  return response;
 }
 
 export const config = {

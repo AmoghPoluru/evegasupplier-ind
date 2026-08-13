@@ -6,12 +6,12 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
   Users,
-  UserCheck,
   Package,
   ShoppingCart,
   UserCircle,
   Shield,
   ExternalLink,
+  UserCog,
 } from 'lucide-react';
 
 type NavItem = {
@@ -36,11 +36,6 @@ const navGroups: NavGroup[] = [
     label: 'Supply',
     items: [
       { href: '/app-admin/suppliers', label: 'All Suppliers', icon: Users },
-      {
-        href: '/app-admin/vendors/pending',
-        label: 'Pending Suppliers',
-        icon: UserCheck,
-      },
       { href: '/app-admin/products', label: 'Products', icon: Package },
     ],
   },
@@ -50,6 +45,10 @@ const navGroups: NavGroup[] = [
       { href: '/app-admin/buyers', label: 'All Buyers', icon: UserCircle },
       { href: '/app-admin/orders', label: 'Orders', icon: ShoppingCart },
     ],
+  },
+  {
+    label: 'System',
+    items: [{ href: '/app-admin/users', label: 'Users', icon: UserCog }],
   },
 ];
 

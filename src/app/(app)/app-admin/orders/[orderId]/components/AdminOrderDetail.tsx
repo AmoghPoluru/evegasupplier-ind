@@ -23,7 +23,7 @@ import {
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import type { Order, Product, User, Vendor } from "@/payload-types";
+import type { Order, Product, User, Supplier } from "@/payload-types";
 
 const ORDER_STATUSES = [
   "pending",
@@ -77,7 +77,7 @@ export function AdminOrderDetail({ orderId }: Props) {
       : o.buyer;
   const supplier =
     typeof o.supplier === "object" && o.supplier
-      ? (o.supplier as Vendor).companyName
+      ? (o.supplier as Supplier).companyName
       : o.supplier;
 
   return (

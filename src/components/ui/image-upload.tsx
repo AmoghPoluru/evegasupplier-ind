@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { upload } from '@vercel/blob/client';
 import { X, Upload } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
@@ -14,15 +15,113 @@ interface ImageUploadProps {
   acceptedTypes?: string[];
 }
 
+const DEFAULT_MAX_SIZE = 4 * 1024 * 1024;
+
+async function registerBlobMedia(input: {
+  url: string;
+  filename?: string;
+  mimeType: string;
+  size: number;
+  alt: string;
+}): Promise<string> {
+  const response = await fetch('/api/media/create-from-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(input),
+  });
+
+  let payloadUnknown: unknown;
+  try {
+    payloadUnknown = await response.json();
+  } catch {
+    payloadUnknown = null;
+  }
+
+  if (!response.ok) {
+    const errMsg =
+      payloadUnknown &&
+      typeof payloadUnknown === 'object' &&
+      'error' in payloadUnknown &&
+      typeof (payloadUnknown as { error: unknown }).error === 'string' ?
+        (payloadUnknown as { error: string }).error
+      : `Upload failed (${response.status})`;
+    throw new Error(errMsg);
+  }
+
+  const data = payloadUnknown as { doc?: { id?: unknown } } | null;
+  const rawId = data?.doc?.id;
+  const newId = rawId !== undefined && rawId !== null ? String(rawId) : '';
+  if (!newId) {
+    throw new Error('Unexpected response from upload');
+  }
+  return newId;
+}
+
 export function ImageUpload({
   value = [],
   onChange,
   maxImages = 10,
-  maxSize = 5 * 1024 * 1024, // 5MB
+  maxSize = DEFAULT_MAX_SIZE,
   acceptedTypes = ['image/jpeg', 'image/png', 'image/webp'],
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const uploadFile = useCallback(async (file: File): Promise<string> => {
+    try {
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/media/client-upload',
+      });
+
+      return registerBlobMedia({
+        url: blob.url,
+        filename: blob.pathname,
+        mimeType: file.type,
+        size: file.size,
+        alt: file.name,
+      });
+    } catch (directError) {
+      if (file.size > DEFAULT_MAX_SIZE) {
+        throw directError instanceof Error ?
+            directError
+          : new Error('Direct upload failed');
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/media', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      let payloadUnknown: unknown;
+      try {
+        payloadUnknown = await response.json();
+      } catch {
+        payloadUnknown = null;
+      }
+
+      if (!response.ok) {
+        const errMsg =
+          payloadUnknown &&
+          typeof payloadUnknown === 'object' &&
+          'error' in payloadUnknown &&
+          typeof (payloadUnknown as { error: unknown }).error === 'string' ?
+            (payloadUnknown as { error: string }).error
+          : `Upload failed (${response.status})`;
+        throw new Error(errMsg);
+      }
+
+      const data = payloadUnknown as { doc?: { id?: unknown } } | null;
+      const rawId = data?.doc?.id;
+      const newId = rawId !== undefined && rawId !== null ? String(rawId) : '';
+      if (!newId) throw new Error('Unexpected response from upload');
+      return newId;
+    }
+  }, []);
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -51,47 +150,11 @@ export function ImageUpload({
           continue;
         }
 
-        // Upload file to Payload media endpoint
-        const formData = new FormData();
-        formData.append('file', file);
-
         try {
           setUploading((prev) => [...prev, file.name]);
-          const response = await fetch('/api/media', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include',
-          });
-
-          let payloadUnknown: unknown;
-          try {
-            payloadUnknown = await response.json();
-          } catch {
-            payloadUnknown = null;
-          }
-
-          if (!response.ok) {
-            const errMsg =
-              payloadUnknown &&
-              typeof payloadUnknown === 'object' &&
-              'error' in payloadUnknown &&
-              typeof (payloadUnknown as { error: unknown }).error === 'string' ?
-                (payloadUnknown as { error: string }).error
-              : `Upload failed (${response.status})`;
-            throw new Error(errMsg);
-          }
-
-          const data = payloadUnknown as { doc?: { id?: unknown } } | null;
-          const rawId = data?.doc?.id;
-          const newId =
-            rawId !== undefined && rawId !== null ? String(rawId) : '';
-          if (newId) {
-            newImages.push(newId);
-            onChange([...newImages]);
-          } else if (!payloadUnknown ||
-              !(typeof payloadUnknown === 'object' && 'doc' in payloadUnknown)) {
-            throw new Error('Unexpected response from upload');
-          }
+          const newId = await uploadFile(file);
+          newImages.push(newId);
+          onChange([...newImages]);
         } catch (error: unknown) {
           const msg =
             error instanceof Error ?
@@ -106,7 +169,7 @@ export function ImageUpload({
         }
       }
     },
-    [value, onChange, maxImages, maxSize, acceptedTypes]
+    [value, onChange, maxImages, maxSize, acceptedTypes, uploadFile],
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -131,7 +194,7 @@ export function ImageUpload({
           isDragActive
             ? 'border-primary bg-primary/5'
             : 'border-gray-300 hover:border-gray-400',
-          value.length >= maxImages && 'opacity-50 cursor-not-allowed'
+          value.length >= maxImages && 'opacity-50 cursor-not-allowed',
         )}
       >
         <input {...getInputProps()} />

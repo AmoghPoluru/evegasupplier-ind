@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import type { Product } from '@/payload-types';
-import { firstProductImageUrl, nextImageUnoptimizedForSrc } from '@/lib/media-url';
+import { firstProductImageUrl } from '@/lib/media-url';
 
 interface ProductCardHorizontalProps {
   product: Product;
@@ -32,7 +32,6 @@ export function ProductCardHorizontal({ product }: ProductCardHorizontalProps) {
               alt={product.title || 'Product'}
               width={192}
               height={192}
-              unoptimized={nextImageUnoptimizedForSrc(imageUrl)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (

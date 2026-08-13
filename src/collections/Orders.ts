@@ -52,7 +52,7 @@ export const Orders: CollectionConfig = {
     {
       name: 'supplier',
       type: 'relationship',
-      relationTo: 'vendors',
+      relationTo: 'suppliers',
       required: true,
       admin: {
         description: 'Vendor/supplier fulfilling this order',

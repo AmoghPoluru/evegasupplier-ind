@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPayload } from 'payload';
 import config from '@payload-config';
-import { blobReadWriteToken } from '@/lib/blob-token';
-import { uploadToBlob, deleteFromBlob } from '@/lib/vercel-blob-storage';
+import { REST_GET } from '@payloadcms/next/routes';
+import { createMediaFromBlob } from '@/lib/create-media-from-blob';
+import { mediaStorage } from '@/lib/media-storage';
+import { resolveMediaDisplayUrl, type MediaLike } from '@/lib/media-url';
 
 export const maxDuration = 120;
 export const runtime = 'nodejs';
 
-function vercelBlobObjectUrl(media: {
-  url?: unknown;
-  blobUrl?: unknown;
-}): string | null {
-  const candidates = [media.blobUrl, media.url];
-  for (const u of candidates) {
-    if (
-      typeof u === 'string' &&
-      u.length > 0 &&
-      u.includes('.vercel-storage.com')
-    ) {
-      return u;
-    }
-  }
-  return null;
+/** Payload REST list/read — custom POST/DELETE below handle uploads. */
+export const GET = REST_GET(config);
+
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+function mediaDeleteUrl(media: MediaLike): string | null {
+  const url = resolveMediaDisplayUrl(media, { allowIdProxy: false });
+  return url && /^https?:\/\//i.test(url) ? url : null;
 }
 
 export async function DELETE(req: NextRequest) {
@@ -68,23 +63,17 @@ export async function DELETE(req: NextRequest) {
             }
           }
         } catch {
-          // ignore
+          // ignore malformed where
         }
       }
     }
 
     if (ids.length === 0) {
-      console.error(
-        'No IDs found in DELETE request. Query params:',
-        Array.from(searchParams.entries()),
-      );
-      return NextResponse.json({ error: 'No IDs found in request' }, {
-        status: 400,
-      });
+      return NextResponse.json({ error: 'No IDs found in request' }, { status: 400 });
     }
 
     ids = [...new Set(ids)];
-
+    const storage = mediaStorage();
     const deleted: string[] = [];
     const errors: Array<{ id: string; error: string }> = [];
 
@@ -93,39 +82,32 @@ export async function DELETE(req: NextRequest) {
         const media = await payload.findByID({
           collection: 'media',
           id,
+          depth: 0,
         });
 
-        const blobObjectUrl = vercelBlobObjectUrl(media);
-        if (blobObjectUrl) {
+        const blobUrl = mediaDeleteUrl(media as unknown as MediaLike);
+        if (blobUrl) {
           try {
-            await deleteFromBlob(blobObjectUrl);
+            await storage.delete({ url: blobUrl, key: media.filename ?? undefined });
           } catch (blobError: unknown) {
             const msg =
               blobError instanceof Error ? blobError.message : String(blobError);
-            console.warn(`Could not delete from Blob (continuing): ${msg}`);
+            console.warn(`Could not delete blob (continuing): ${msg}`);
           }
         }
 
-        await payload.delete({
-          collection: 'media',
-          id,
-        });
+        await payload.delete({ collection: 'media', id });
         deleted.push(id);
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : 'Delete failed';
-        console.error(`Failed to delete media ${id}:`, msg);
         errors.push({ id, error: msg });
       }
     }
 
     if (errors.length > 0 && deleted.length === 0) {
-      return NextResponse.json(
-        {
-          errors,
-          message: 'Failed to delete media items',
-        },
-        { status: 400 },
-      );
+      return NextResponse.json({ errors, message: 'Failed to delete media items' }, {
+        status: 400,
+      });
     }
 
     return NextResponse.json({
@@ -135,7 +117,6 @@ export async function DELETE(req: NextRequest) {
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Failed to delete media';
-    console.error('Media delete error:', error);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
@@ -162,80 +143,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-    console.log(`Uploading ${file.type} file: ${file.name} (${fileSizeMB} MB)`);
-
-    if (file.size > 100 * 1024 * 1024) {
-      console.warn(`Large file detected: ${fileSizeMB} MB. Upload may take longer.`);
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        {
+          error: `File exceeds ${MAX_UPLOAD_BYTES / 1024 / 1024}MB server upload limit. Use direct blob upload for larger files.`,
+        },
+        { status: 413 },
+      );
     }
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-
-    let blobUrl: string | null = null;
-    if (blobReadWriteToken()) {
-      try {
-        const blobResult = await uploadToBlob(buffer, file.name, file.type);
-        blobUrl = blobResult.url;
-        console.log(`Uploaded to Vercel Blob: ${blobUrl}`);
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        console.error('Vercel Blob upload error:', error);
-        console.warn('Blob upload failed, attempting local fallback:', msg);
-      }
-    }
-
-    let media;
-    if (blobUrl) {
-      const db = payload.db;
-      const blobPathname = blobUrl.split('/').pop() || file.name;
-      const mediaDoc = {
-        alt: file.name,
-        blobUrl,
-        filename: blobPathname,
-        mimeType: file.type,
-        filesize: file.size,
-        url: blobUrl,
-      };
-
-      const result = await db.create({
-        collection: 'media',
-        data: mediaDoc,
-      });
-
-      if (!result?.id) {
-        throw new Error('Failed to create media document: No ID returned');
-      }
-
-      media = await payload.findByID({
-        collection: 'media',
-        id: result.id,
-      });
-    } else {
-      if (process.env.NODE_ENV === 'production') {
-        return NextResponse.json(
-          {
-            error:
-              'BLOB_READ_WRITE_TOKEN is required for file uploads in production. Configure it in Vercel environment variables.',
-          },
-          { status: 500 },
-        );
-      }
-
-      media = await payload.create({
-        collection: 'media',
-        data: {
-          alt: file.name,
-        },
-        file: {
-          data: buffer,
-          mimetype: file.type,
-          name: file.name,
-          size: file.size,
-        },
-      });
-      console.log(`Saved locally (development): ${media.filename || file.name}`);
-    }
+    const stored = await mediaStorage().put(buffer, file.name, file.type);
+    const media = await createMediaFromBlob(payload, stored, file.name);
 
     return NextResponse.json({ doc: media });
   } catch (error: unknown) {

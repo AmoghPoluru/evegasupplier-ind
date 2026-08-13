@@ -1,38 +1,46 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { TRPCReactProvider } from "@/trpc/client";
-import { Toaster } from "@/components/ui/sonner";
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import { headers } from 'next/headers';
+import './globals.css';
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
 });
 
 export const metadata: Metadata = {
-  title: "EvegaSupply - B2B Supplier Marketplace",
-  description: "B2B supplier marketplace platform",
+  title: 'EvegaSupply - B2B Supplier Marketplace',
+  description: 'B2B supplier marketplace platform',
 };
 
-export default function RootLayout({
+function isPayloadAdminPath(pathname: string) {
+  return pathname === '/admin' || pathname.startsWith('/admin/');
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = (await headers()).get('x-pathname') ?? '';
+
+  // Payload CMS `/admin` renders its own document via RootLayout.
+  if (isPayloadAdminPath(pathname)) {
+    return children;
+  }
+
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
-        <TRPCReactProvider>
-          {children}
-          <Toaster />
-        </TRPCReactProvider>
+        {children}
       </body>
     </html>
   );
