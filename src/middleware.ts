@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Next.js Middleware
- * Currently allows all access - no restrictions
+ * Legacy `(app)/admin/*` URLs → `/app-admin/*` (Payload CMS stays at `/admin` via `(payload)`).
  */
 export async function middleware(request: NextRequest) {
-  // Allow all requests - no access control
-  return NextResponse.next();
+  const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith('/admin/vendors')) {
+    return NextResponse.redirect(new URL('/app-admin/suppliers', request.url));
+  }
+
+  const response = NextResponse.next();
+  response.headers.set('x-pathname', pathname);
+  return response;
 }
 
 export const config = {

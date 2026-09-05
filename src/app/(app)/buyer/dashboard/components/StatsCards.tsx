@@ -2,18 +2,11 @@
 
 import { trpc } from '@/trpc/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, FileCheck, ShoppingCart, MessageSquare, DollarSign } from 'lucide-react';
+import { ShoppingCart, DollarSign, Package } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-interface StatsCardsProps {
-  buyerId: string;
-}
-
-export function StatsCards({ buyerId }: StatsCardsProps) {
-  const { data: rfqCount, isLoading: rfqLoading } = trpc.buyers.rfqs.count.useQuery();
-  const { data: quoteCount, isLoading: quoteLoading } = trpc.buyers.quotes.count.useQuery();
+export function StatsCards() {
   const { data: orderStats, isLoading: orderStatsLoading } = trpc.buyers.orders.stats.useQuery();
-  const { data: inquiryCount, isLoading: inquiryLoading } = trpc.buyers.inquiries.count.useQuery();
 
   const stats = [
     {
@@ -33,23 +26,18 @@ export function StatsCards({ buyerId }: StatsCardsProps) {
       isLoading: orderStatsLoading,
     },
     {
-      title: 'Active RFQs',
-      value: rfqCount?.count || 0,
-      description: 'RFQs you\'ve created',
-      icon: FileText,
-      isLoading: rfqLoading,
-    },
-    {
-      title: 'Pending Quotes',
-      value: quoteCount?.count || 0,
-      description: 'Quotes awaiting your review',
-      icon: FileCheck,
-      isLoading: quoteLoading,
+      title: 'Average Order',
+      value: orderStats?.averageOrderValue
+        ? `$${orderStats.averageOrderValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : '$0.00',
+      description: 'Per order average',
+      icon: Package,
+      isLoading: orderStatsLoading,
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (

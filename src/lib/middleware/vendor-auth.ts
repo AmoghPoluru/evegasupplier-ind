@@ -32,7 +32,7 @@ export async function getVendorStatus(): Promise<VendorStatus> {
 
   // Find vendor associated with this user
   const vendorsResult = await payload.find({
-    collection: 'vendors',
+    collection: 'suppliers',
     where: { user: { equals: user.id } },
     limit: 1,
     depth: 1,

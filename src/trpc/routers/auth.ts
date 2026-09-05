@@ -200,7 +200,7 @@ export const authRouter = createTRPCRouter({
 
       // Find supplier (vendor) associated with this user
       const vendorsResult = await ctx.payload.find({
-        collection: 'vendors' as any,
+        collection: 'suppliers' as any,
         where: { user: { equals: session.user.id } },
         limit: 1,
       });
@@ -356,7 +356,7 @@ export const authRouter = createTRPCRouter({
 
         // Check if user already has supplier profile
         const existingVendors = await ctx.payload.find({
-          collection: 'vendors' as any,
+          collection: 'suppliers' as any,
           where: { user: { equals: session.user.id } },
           limit: 1,
         });
@@ -370,7 +370,7 @@ export const authRouter = createTRPCRouter({
 
         // Check for duplicate company name (case-insensitive)
         const duplicateVendors = await ctx.payload.find({
-          collection: 'vendors' as any,
+          collection: 'suppliers' as any,
           where: {
             companyName: {
               contains: input.companyName,
@@ -388,7 +388,7 @@ export const authRouter = createTRPCRouter({
 
         // Create supplier (vendor) profile
         const supplier = await ctx.payload.create({
-          collection: 'vendors' as any,
+          collection: 'suppliers' as any,
           data: {
             user: session.user.id,
             companyName: input.companyName,

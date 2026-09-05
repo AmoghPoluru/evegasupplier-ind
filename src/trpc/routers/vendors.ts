@@ -18,7 +18,7 @@ async function getVendorIdFromSession(ctx: any): Promise<string | null> {
     if (!user) return null;
     
     const vendorsResult = await payload.find({
-      collection: 'vendors',
+      collection: 'suppliers',
       where: { user: { equals: user.id } },
       limit: 1,
     });
@@ -54,7 +54,7 @@ export const vendorsRouter = createTRPCRouter({
       }
 
       const result = await ctx.payload.find({
-        collection: 'vendors',
+        collection: 'suppliers',
         where: where as any,
         limit: input.limit,
         page: input.page,
@@ -73,7 +73,7 @@ export const vendorsRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const vendor = await ctx.payload.findByID({
-        collection: 'vendors',
+        collection: 'suppliers',
         id: input.id,
       });
       return vendor;
@@ -83,7 +83,7 @@ export const vendorsRouter = createTRPCRouter({
     .input(z.object({ userId: z.string() }))
     .query(async ({ ctx, input }) => {
       const result = await ctx.payload.find({
-        collection: 'vendors',
+        collection: 'suppliers',
         where: { user: { equals: input.userId } },
         limit: 1,
         depth: 0,
@@ -101,7 +101,7 @@ export const vendorsRouter = createTRPCRouter({
       }
 
       const vendorsResult = await payload.find({
-        collection: 'vendors',
+        collection: 'suppliers',
         where: { user: { equals: user.id } },
         limit: 1,
       });
@@ -129,13 +129,13 @@ export const vendorsRouter = createTRPCRouter({
       }
 
       await payload.update({
-        collection: 'vendors',
+        collection: 'suppliers',
         id: vendor.id,
         data: vendorPatch,
       });
 
       const updated = await payload.findByID({
-        collection: 'vendors',
+        collection: 'suppliers',
         id: vendor.id,
         depth: 0,
       });
@@ -203,7 +203,7 @@ export const vendorsRouter = createTRPCRouter({
         }
 
         const result = await ctx.payload.find({
-          collection: 'vendors',
+          collection: 'suppliers',
           where: where as any,
           limit: input.limit,
           page: input.page,
@@ -253,7 +253,7 @@ export const vendorsRouter = createTRPCRouter({
       .query(async ({ ctx, input }) => {
         try {
           const vendor = await ctx.payload.findByID({
-            collection: 'vendors',
+            collection: 'suppliers',
             id: input.id,
           });
 
@@ -495,161 +495,6 @@ export const vendorsRouter = createTRPCRouter({
 
         return sortedProducts;
       }),
-
-    rfqStats: baseProcedure
-      .input(
-        z.object({
-          startDate: z.string().optional(),
-          endDate: z.string().optional(),
-        }),
-      )
-      .query(async ({ ctx, input }) => {
-        const vendorId = await getVendorIdFromSession(ctx);
-        if (!vendorId) {
-          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
-        }
-        // Get vendor's products to find matching RFQs
-        const vendorProducts = await ctx.payload.find({
-          collection: 'products',
-          where: { supplier: { equals: vendorId } },
-          limit: 1000,
-        });
-
-        const productIds = vendorProducts.docs.map((p: any) => p.id);
-
-        // Get RFQs that match vendor's product categories
-        const rfqWhere: Record<string, unknown> = {
-          isPublic: { equals: true },
-        };
-
-        if (input.startDate || input.endDate) {
-          rfqWhere.createdAt = {} as any;
-          if (input.startDate) {
-            (rfqWhere.createdAt as any).greaterThanEqual = input.startDate;
-          }
-          if (input.endDate) {
-            (rfqWhere.createdAt as any).lessThanEqual = input.endDate;
-          }
-        }
-
-        const rfqs = await ctx.payload.find({
-          collection: 'rfqs',
-          where: rfqWhere as any,
-          limit: 1000,
-        });
-
-        // Get quotes submitted by this vendor
-        const quotesWhere: Record<string, unknown> = {
-          supplier: { equals: vendorId },
-        };
-
-        if (input.startDate || input.endDate) {
-          quotesWhere.submittedAt = {} as any;
-          if (input.startDate) {
-            (quotesWhere.submittedAt as any).greaterThanEqual = input.startDate;
-          }
-          if (input.endDate) {
-            (quotesWhere.submittedAt as any).lessThanEqual = input.endDate;
-          }
-        }
-
-        const quotes = await ctx.payload.find({
-          collection: 'quotes',
-          where: quotesWhere as any,
-          limit: 1000,
-        });
-
-        const totalRFQs = rfqs.totalDocs;
-        const quotesSubmitted = quotes.totalDocs;
-        const quotesAccepted = quotes.docs.filter((q: any) => q.status === 'accepted').length;
-        const averageQuoteValue = quotes.totalDocs > 0
-          ? quotes.docs.reduce((sum: number, q: any) => sum + (q.totalPrice || 0), 0) / quotes.totalDocs
-          : 0;
-
-        return {
-          totalRFQs,
-          quotesSubmitted,
-          quotesAccepted,
-          quoteAcceptanceRate: quotesSubmitted > 0 ? (quotesAccepted / quotesSubmitted) * 100 : 0,
-          averageQuoteValue,
-        };
-      }),
-
-    inquiryStats: baseProcedure
-      .input(
-        z.object({
-          startDate: z.string().optional(),
-          endDate: z.string().optional(),
-        }),
-      )
-      .query(async ({ ctx, input }) => {
-        const vendorId = await getVendorIdFromSession(ctx);
-        if (!vendorId) {
-          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
-        }
-        // Get vendor's products
-        const vendorProducts = await ctx.payload.find({
-          collection: 'products',
-          where: { supplier: { equals: vendorId } },
-          limit: 1000,
-        });
-
-        const productIds = vendorProducts.docs.map((p: any) => p.id);
-
-        // Get inquiries for vendor's products
-        const where: Record<string, unknown> = {
-          product: { in: productIds },
-        };
-
-        if (input.startDate || input.endDate) {
-          where.createdAt = {} as any;
-          if (input.startDate) {
-            (where.createdAt as any).greaterThanEqual = input.startDate;
-          }
-          if (input.endDate) {
-            (where.createdAt as any).lessThanEqual = input.endDate;
-          }
-        }
-
-        const inquiries = await ctx.payload.find({
-          collection: 'inquiries',
-          where: where as any,
-          limit: 1000,
-        });
-
-        const totalInquiries = inquiries.totalDocs;
-
-        // Calculate average response time (if messages exist)
-        let totalResponseTime = 0;
-        let respondedCount = 0;
-
-        inquiries.docs.forEach((inquiry: any) => {
-          if (inquiry.messages && Array.isArray(inquiry.messages) && inquiry.messages.length > 1) {
-            const firstMessage = inquiry.messages[0];
-            const firstReply = inquiry.messages.find((m: any) => m.sender !== firstMessage.sender);
-            if (firstReply && firstMessage.createdAt && firstReply.createdAt) {
-              const responseTime = new Date(firstReply.createdAt).getTime() - new Date(firstMessage.createdAt).getTime();
-              totalResponseTime += responseTime;
-              respondedCount++;
-            }
-          }
-        });
-
-        const averageResponseTime = respondedCount > 0 ? totalResponseTime / respondedCount : 0;
-
-        // Count by status
-        const inquiriesByStatus: Record<string, number> = {};
-        inquiries.docs.forEach((inquiry: any) => {
-          const status = inquiry.status || 'new';
-          inquiriesByStatus[status] = (inquiriesByStatus[status] || 0) + 1;
-        });
-
-        return {
-          totalInquiries,
-          averageResponseTime: averageResponseTime / (1000 * 60 * 60), // Convert to hours
-          inquiriesByStatus,
-        };
-      }),
   }),
 
   products: createTRPCRouter({
@@ -856,293 +701,6 @@ export const vendorsRouter = createTRPCRouter({
       }),
   }),
 
-  rfqs: createTRPCRouter({
-    list: baseProcedure
-      .input(
-        z.object({
-          limit: z.number().min(1).max(100).optional().default(20),
-          page: z.number().min(1).optional().default(1),
-          filter: z.enum(['all', 'matched', 'my_quotes']).optional().default('all'),
-        }),
-      )
-      .query(async ({ ctx, input }) => {
-        const vendorId = await getVendorIdFromSession(ctx);
-        if (!vendorId) {
-          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
-        }
-
-        // Get vendor's products to find matching RFQs
-        const vendorProducts = await ctx.payload.find({
-          collection: 'products',
-          where: { supplier: { equals: vendorId } },
-          limit: 1000,
-        });
-
-        const productIds = vendorProducts.docs.map((p: any) => p.id);
-        const productCategories = vendorProducts.docs.map((p: any) => p.category).filter(Boolean);
-
-        const where: Record<string, unknown> = {
-          isPublic: { equals: true },
-          status: { in: ['new', 'open'] },
-        };
-
-        // If filter is 'matched', only show RFQs that match vendor's product categories
-        if (input.filter === 'matched' && productCategories.length > 0) {
-          where.category = { in: productCategories };
-        }
-
-        // If filter is 'my_quotes', only show RFQs where vendor has submitted quotes
-        if (input.filter === 'my_quotes') {
-          const quotes = await ctx.payload.find({
-            collection: 'quotes',
-            where: { supplier: { equals: vendorId } },
-            limit: 1000,
-          });
-          const rfqIds = quotes.docs.map((q: any) => {
-            const rfqId = typeof q.rfq === 'string' ? q.rfq : (q.rfq as any)?.id;
-            return rfqId;
-          }).filter(Boolean);
-          if (rfqIds.length > 0) {
-            where.id = { in: rfqIds };
-          } else {
-            // No quotes, return empty result
-            return {
-              rfqs: [],
-              totalDocs: 0,
-              totalPages: 0,
-              page: 1,
-            };
-          }
-        }
-
-        const result = await ctx.payload.find({
-          collection: 'rfqs',
-          where: where as any,
-          limit: input.limit,
-          page: input.page,
-          sort: '-createdAt',
-          depth: 2,
-        });
-
-        // For each RFQ, check if vendor has quoted
-        const rfqsWithQuoteStatus = await Promise.all(
-          result.docs.map(async (rfq: any) => {
-            const quote = await ctx.payload.find({
-              collection: 'quotes',
-              where: {
-                rfq: { equals: rfq.id },
-                supplier: { equals: vendorId },
-              },
-              limit: 1,
-            });
-            return {
-              ...rfq,
-              hasQuoted: quote.docs.length > 0,
-              quote: quote.docs[0] || null,
-            };
-          })
-        );
-
-        return {
-          rfqs: rfqsWithQuoteStatus,
-          totalDocs: result.totalDocs,
-          totalPages: result.totalPages,
-          page: result.page,
-        };
-      }),
-
-    getById: baseProcedure
-      .input(z.object({ id: z.string() }))
-      .query(async ({ ctx, input }) => {
-        const vendorId = await getVendorIdFromSession(ctx);
-        if (!vendorId) {
-          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
-        }
-
-        const rfq = await ctx.payload.findByID({
-          collection: 'rfqs',
-          id: input.id,
-          depth: 2,
-        });
-
-        // Check if vendor has quoted
-        const quote = await ctx.payload.find({
-          collection: 'quotes',
-          where: {
-            rfq: { equals: rfq.id },
-            supplier: { equals: vendorId },
-          },
-          limit: 1,
-        });
-
-        return {
-          ...rfq,
-          hasQuoted: quote.docs.length > 0,
-          quote: quote.docs[0] || null,
-        };
-      }),
-
-    submitQuote: baseProcedure
-      .input(
-        z.object({
-          rfqId: z.string(),
-          unitPrice: z.number().min(0),
-          totalPrice: z.number().min(0),
-          moq: z.number().int().min(1).optional(),
-          leadTime: z.string().optional(),
-          paymentTerms: z.string().optional(),
-          deliveryTerms: z.string().optional(),
-          notes: z.string().optional(),
-        }),
-      )
-      .mutation(async ({ ctx, input }) => {
-        const vendorId = await getVendorIdFromSession(ctx);
-        if (!vendorId) {
-          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
-        }
-
-        const quote = await ctx.payload.create({
-          collection: 'quotes',
-          data: {
-            rfq: input.rfqId,
-            supplier: vendorId,
-            unitPrice: input.unitPrice,
-            totalPrice: input.totalPrice,
-            moq: input.moq,
-            leadTime: input.leadTime,
-            paymentTerms: input.paymentTerms,
-            deliveryTerms: input.deliveryTerms,
-            notes: input.notes,
-            status: 'pending',
-          } as any,
-        });
-
-        return quote;
-      }),
-
-    updateQuote: baseProcedure
-      .input(
-        z.object({
-          quoteId: z.string(),
-          unitPrice: z.number().min(0).optional(),
-          totalPrice: z.number().min(0).optional(),
-          moq: z.number().int().min(1).optional(),
-          leadTime: z.string().optional(),
-          paymentTerms: z.string().optional(),
-          deliveryTerms: z.string().optional(),
-          notes: z.string().optional(),
-        }),
-      )
-      .mutation(async ({ ctx, input }) => {
-        const vendorId = await getVendorIdFromSession(ctx);
-        if (!vendorId) {
-          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
-        }
-
-        // Verify quote belongs to vendor
-        const existingQuote = await ctx.payload.findByID({
-          collection: 'quotes',
-          id: input.quoteId,
-        });
-
-        const supplierId = typeof existingQuote.supplier === 'string'
-          ? existingQuote.supplier
-          : (existingQuote.supplier as any)?.id;
-
-        if (supplierId !== vendorId) {
-          throw new Error('You do not have permission to update this quote');
-        }
-
-        // Check if RFQ is still open
-        const rfqId = typeof existingQuote.rfq === 'string'
-          ? existingQuote.rfq
-          : (existingQuote.rfq as any)?.id;
-
-        const rfq = await ctx.payload.findByID({
-          collection: 'rfqs',
-          id: rfqId,
-        });
-
-        if (rfq.status !== 'open') {
-          throw new Error('Cannot update quote for a closed RFQ');
-        }
-
-        const { quoteId, ...updateData } = input;
-        const quote = await ctx.payload.update({
-          collection: 'quotes',
-          id: quoteId,
-          data: updateData as any,
-        });
-
-        return quote;
-      }),
-
-    withdrawQuote: baseProcedure
-      .input(z.object({ quoteId: z.string() }))
-      .mutation(async ({ ctx, input }) => {
-        const vendorId = await getVendorIdFromSession(ctx);
-        if (!vendorId) {
-          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
-        }
-
-        // Verify quote belongs to vendor
-        const existingQuote = await ctx.payload.findByID({
-          collection: 'quotes',
-          id: input.quoteId,
-        });
-
-        const supplierId = typeof existingQuote.supplier === 'string'
-          ? existingQuote.supplier
-          : (existingQuote.supplier as any)?.id;
-
-        if (supplierId !== vendorId) {
-          throw new Error('You do not have permission to withdraw this quote');
-        }
-
-        if (existingQuote.status === 'accepted') {
-          throw new Error('Cannot withdraw an accepted quote');
-        }
-
-        // Soft delete by setting status to 'withdrawn' or delete
-        await ctx.payload.update({
-          collection: 'quotes',
-          id: input.quoteId,
-          data: { status: 'withdrawn' } as any,
-        });
-
-        return { success: true };
-      }),
-
-    getQuotes: baseProcedure
-      .input(
-        z.object({
-          limit: z.number().min(1).max(100).optional().default(20),
-          page: z.number().min(1).optional().default(1),
-        }),
-      )
-      .query(async ({ ctx, input }) => {
-        const vendorId = await getVendorIdFromSession(ctx);
-        if (!vendorId) {
-          throw new Error('Vendor not found. Please ensure you are logged in as a vendor.');
-        }
-
-        const result = await ctx.payload.find({
-          collection: 'quotes',
-          where: { supplier: { equals: vendorId } },
-          limit: input.limit,
-          page: input.page,
-          sort: '-submittedAt',
-          depth: 2,
-        });
-
-        return {
-          quotes: result.docs,
-          totalDocs: result.totalDocs,
-          totalPages: result.totalPages,
-          page: result.page,
-        };
-      }),
-  }),
 
   /**
    * Orders management

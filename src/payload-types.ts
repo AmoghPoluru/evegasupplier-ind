@@ -69,18 +69,11 @@ export interface Config {
   collections: {
     users: User;
     media: Media;
-    vendors: Vendor;
+    suppliers: Supplier;
     buyers: Buyer;
     products: Product;
-    rfqs: Rfq;
-    quotes: Quote;
-    inquiries: Inquiry;
-    messages: Message;
-    'sample-requests': SampleRequest;
     'product-catalogs': ProductCatalog;
     orders: Order;
-    'bdo-conversations': BdoConversation;
-    'bdo-chat-messages': BdoChatMessage;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -88,25 +81,18 @@ export interface Config {
   };
   collectionsJoins: {
     users: {
-      supplierProfile: 'vendors';
+      supplierProfile: 'suppliers';
       buyerCompanyProfile: 'buyers';
     };
   };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
-    vendors: VendorsSelect<false> | VendorsSelect<true>;
+    suppliers: SuppliersSelect<false> | SuppliersSelect<true>;
     buyers: BuyersSelect<false> | BuyersSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
-    rfqs: RfqsSelect<false> | RfqsSelect<true>;
-    quotes: QuotesSelect<false> | QuotesSelect<true>;
-    inquiries: InquiriesSelect<false> | InquiriesSelect<true>;
-    messages: MessagesSelect<false> | MessagesSelect<true>;
-    'sample-requests': SampleRequestsSelect<false> | SampleRequestsSelect<true>;
     'product-catalogs': ProductCatalogsSelect<false> | ProductCatalogsSelect<true>;
     orders: OrdersSelect<false> | OrdersSelect<true>;
-    'bdo-conversations': BdoConversationsSelect<false> | BdoConversationsSelect<true>;
-    'bdo-chat-messages': BdoChatMessagesSelect<false> | BdoChatMessagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -169,7 +155,7 @@ export interface User {
    * Supplier/vendor company profile where this user is the owner (vendors.user → this user). At most one per user.
    */
   supplierProfile?: {
-    docs?: (string | Vendor)[];
+    docs?: (string | Supplier)[];
     hasNextPage?: boolean;
     totalDocs?: number;
   };
@@ -203,9 +189,9 @@ export interface User {
  * B2B supplier/vendor profiles
  *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "vendors".
+ * via the `definition` "suppliers".
  */
-export interface Vendor {
+export interface Supplier {
   id: string;
   /**
    * User account linked to this vendor profile
@@ -235,6 +221,10 @@ export interface Vendor {
    * Legal or trading name of the company
    */
   companyName: string;
+  /**
+   * Optional OpenAI API key for AI product titles/descriptions from this supplier's photos. Overrides the platform env key when set. Never shown on the public marketplace.
+   */
+  openaiApiKey?: string | null;
   /**
    * Type of business entity
    */
@@ -303,7 +293,7 @@ export interface Vendor {
    */
   goldSupplier?: boolean | null;
   /**
-   * Typical response time for inquiries
+   * Typical response time for customer messages
    */
   responseTime?: ('24h' | '12h' | '6h' | '2h' | '1h') | null;
   /**
@@ -616,7 +606,7 @@ export interface Product {
   /**
    * Vendor/supplier offering this product
    */
-  supplier: string | Vendor;
+  supplier: string | Supplier;
   /**
    * Public URL for the real upstream supplier or product source. The linked Vendor is the platform “super supplier”.
    */
@@ -719,318 +709,6 @@ export interface Product {
   createdAt: string;
 }
 /**
- * Request for Quotations from buyers
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "rfqs".
- */
-export interface Rfq {
-  id: string;
-  /**
-   * Buyer who created this RFQ
-   */
-  buyer: string | User;
-  /**
-   * RFQ title
-   */
-  title: string;
-  /**
-   * Detailed RFQ description
-   */
-  description?: string | null;
-  /**
-   * Product category
-   */
-  category?: string | null;
-  /**
-   * Products requested in this RFQ
-   */
-  products?:
-    | {
-        product?: (string | null) | Product;
-        quantity?: number | null;
-        specifications?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Total quantity needed
-   */
-  quantity?: number | null;
-  /**
-   * Target price per unit
-   */
-  targetPrice?: number | null;
-  /**
-   * Required delivery date
-   */
-  deliveryDate?: string | null;
-  /**
-   * Delivery address/location
-   */
-  deliveryLocation?: string | null;
-  /**
-   * Preferred payment terms
-   */
-  paymentTerms?:
-    | {
-        term: string;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * RFQ status
-   */
-  status?: ('draft' | 'open' | 'closed' | 'cancelled') | null;
-  /**
-   * Quotes submitted for this RFQ
-   */
-  quotes?: (string | Quote)[] | null;
-  /**
-   * Selected quote (if any)
-   */
-  selectedQuote?: (string | null) | Quote;
-  /**
-   * RFQ expiry date
-   */
-  expiryDate?: string | null;
-  /**
-   * Make this RFQ visible to all vendors
-   */
-  isPublic?: boolean | null;
-  /**
-   * Product specifications
-   */
-  specifications?:
-    | {
-        name: string;
-        value: string;
-        unit?: string | null;
-        notes?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Reference images for product specifications
-   */
-  specificationImages?: (string | Media)[] | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Quotes submitted by suppliers for RFQs
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "quotes".
- */
-export interface Quote {
-  id: string;
-  /**
-   * RFQ this quote is for
-   */
-  rfq: string | Rfq;
-  /**
-   * Vendor/supplier submitting this quote
-   */
-  supplier: string | Vendor;
-  /**
-   * Products in this quote
-   */
-  products?:
-    | {
-        product?: (string | null) | Product;
-        quantity?: number | null;
-        unitPrice?: number | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Total quote price
-   */
-  totalPrice: number;
-  /**
-   * Price per unit
-   */
-  unitPrice?: number | null;
-  /**
-   * Total quantity
-   */
-  quantity?: number | null;
-  /**
-   * Production/delivery lead time
-   */
-  leadTime?: string | null;
-  /**
-   * Payment terms offered
-   */
-  paymentTerms?:
-    | {
-        term: string;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Shipping terms (FOB, CIF, etc.)
-   */
-  shippingTerms?:
-    | {
-        term: string;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Quote validity period (e.g., 30 days)
-   */
-  validityPeriod?: string | null;
-  /**
-   * Additional notes or conditions
-   */
-  notes?: string | null;
-  /**
-   * Quote status
-   */
-  status?: ('pending' | 'submitted' | 'accepted' | 'rejected' | 'withdrawn') | null;
-  /**
-   * Date quote was submitted
-   */
-  submittedAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Buyer inquiries to suppliers
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "inquiries".
- */
-export interface Inquiry {
-  id: string;
-  /**
-   * Buyer making the inquiry
-   */
-  buyer: string | User;
-  /**
-   * Vendor/supplier receiving the inquiry
-   */
-  supplier: string | Vendor;
-  /**
-   * Product this inquiry is about (if applicable)
-   */
-  product?: (string | null) | Product;
-  /**
-   * Inquiry subject
-   */
-  subject: string;
-  /**
-   * Inquiry message
-   */
-  message: string;
-  /**
-   * Type of inquiry
-   */
-  inquiryType?: ('product' | 'general' | 'quote') | null;
-  /**
-   * Inquiry status
-   */
-  status?: ('new' | 'replied' | 'closed') | null;
-  /**
-   * File attachments
-   */
-  attachments?: (string | Media)[] | null;
-  /**
-   * Last reply date
-   */
-  lastRepliedAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Messages within inquiries
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "messages".
- */
-export interface Message {
-  id: string;
-  /**
-   * Inquiry this message belongs to
-   */
-  inquiry: string | Inquiry;
-  /**
-   * User who sent this message
-   */
-  sender: string | User;
-  /**
-   * User who receives this message
-   */
-  receiver: string | User;
-  /**
-   * Message content
-   */
-  message: string;
-  /**
-   * File attachments
-   */
-  attachments?: (string | Media)[] | null;
-  /**
-   * Whether message has been read
-   */
-  read?: boolean | null;
-  /**
-   * Date message was read
-   */
-  readAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Sample product requests from buyers
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "sample-requests".
- */
-export interface SampleRequest {
-  id: string;
-  /**
-   * Product sample requested
-   */
-  product: string | Product;
-  /**
-   * Buyer requesting the sample
-   */
-  buyer: string | User;
-  /**
-   * Vendor/supplier providing the sample
-   */
-  supplier: string | Vendor;
-  /**
-   * Number of samples requested
-   */
-  quantity?: number | null;
-  /**
-   * Purpose of the sample request
-   */
-  purpose?: string | null;
-  /**
-   * Shipping address for sample
-   */
-  shippingAddress: string;
-  /**
-   * Sample request status
-   */
-  status?: ('pending' | 'approved' | 'rejected' | 'shipped' | 'delivered' | 'cancelled') | null;
-  /**
-   * Price for the sample
-   */
-  samplePrice?: number | null;
-  /**
-   * Payment status for sample
-   */
-  paymentStatus?: ('pending' | 'paid' | 'free') | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * Product catalogs from suppliers
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1049,7 +727,7 @@ export interface ProductCatalog {
   /**
    * Vendor/supplier who owns this catalog
    */
-  supplier: string | Vendor;
+  supplier: string | Supplier;
   /**
    * Products included in this catalog
    */
@@ -1088,7 +766,7 @@ export interface Order {
   /**
    * Vendor/supplier fulfilling this order
    */
-  supplier: string | Vendor;
+  supplier: string | Supplier;
   /**
    * Type of order
    */
@@ -1205,55 +883,6 @@ export interface Order {
   createdAt: string;
 }
 /**
- * BDO chat threads (buyer or vendor profile ↔ assigned BDO)
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "bdo-conversations".
- */
-export interface BdoConversation {
-  id: string;
-  profileKind: 'buyer' | 'vendor';
-  buyer?: (string | null) | Buyer;
-  vendor?: (string | null) | Vendor;
-  /**
-   * Assigned BDO (platform staff)
-   */
-  bdo: string | User;
-  /**
-   * Buyer or vendor owner login (buyers.user / vendors.user)
-   */
-  ownerUser: string | User;
-  lastMessageAt?: string | null;
-  /**
-   * User who sent the latest message (denormalized for BDO unread UI)
-   */
-  lastMessageSender?: (string | null) | User;
-  /**
-   * When the assigned BDO last opened this thread (for unread highlight)
-   */
-  bdoLastReadAt?: string | null;
-  status: 'open' | 'archived';
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * Messages within BDO conversations
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "bdo-chat-messages".
- */
-export interface BdoChatMessage {
-  id: string;
-  conversation: string | BdoConversation;
-  sender: string | User;
-  body: string;
-  kind?: ('user' | 'system' | 'ai') | null;
-  attachments?: (string | Media)[] | null;
-  readAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -1286,8 +915,8 @@ export interface PayloadLockedDocument {
         value: string | Media;
       } | null)
     | ({
-        relationTo: 'vendors';
-        value: string | Vendor;
+        relationTo: 'suppliers';
+        value: string | Supplier;
       } | null)
     | ({
         relationTo: 'buyers';
@@ -1298,40 +927,12 @@ export interface PayloadLockedDocument {
         value: string | Product;
       } | null)
     | ({
-        relationTo: 'rfqs';
-        value: string | Rfq;
-      } | null)
-    | ({
-        relationTo: 'quotes';
-        value: string | Quote;
-      } | null)
-    | ({
-        relationTo: 'inquiries';
-        value: string | Inquiry;
-      } | null)
-    | ({
-        relationTo: 'messages';
-        value: string | Message;
-      } | null)
-    | ({
-        relationTo: 'sample-requests';
-        value: string | SampleRequest;
-      } | null)
-    | ({
         relationTo: 'product-catalogs';
         value: string | ProductCatalog;
       } | null)
     | ({
         relationTo: 'orders';
         value: string | Order;
-      } | null)
-    | ({
-        relationTo: 'bdo-conversations';
-        value: string | BdoConversation;
-      } | null)
-    | ({
-        relationTo: 'bdo-chat-messages';
-        value: string | BdoChatMessage;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1469,9 +1070,9 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "vendors_select".
+ * via the `definition` "suppliers_select".
  */
-export interface VendorsSelect<T extends boolean = true> {
+export interface SuppliersSelect<T extends boolean = true> {
   user?: T;
   accountName?: T;
   accountEmail?: T;
@@ -1479,6 +1080,7 @@ export interface VendorsSelect<T extends boolean = true> {
   bdo?: T;
   bdoAssignedAt?: T;
   companyName?: T;
+  openaiApiKey?: T;
   companyType?: T;
   yearEstablished?: T;
   annualRevenue?: T;
@@ -1655,138 +1257,6 @@ export interface ProductsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "rfqs_select".
- */
-export interface RfqsSelect<T extends boolean = true> {
-  buyer?: T;
-  title?: T;
-  description?: T;
-  category?: T;
-  products?:
-    | T
-    | {
-        product?: T;
-        quantity?: T;
-        specifications?: T;
-        id?: T;
-      };
-  quantity?: T;
-  targetPrice?: T;
-  deliveryDate?: T;
-  deliveryLocation?: T;
-  paymentTerms?:
-    | T
-    | {
-        term?: T;
-        id?: T;
-      };
-  status?: T;
-  quotes?: T;
-  selectedQuote?: T;
-  expiryDate?: T;
-  isPublic?: T;
-  specifications?:
-    | T
-    | {
-        name?: T;
-        value?: T;
-        unit?: T;
-        notes?: T;
-        id?: T;
-      };
-  specificationImages?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "quotes_select".
- */
-export interface QuotesSelect<T extends boolean = true> {
-  rfq?: T;
-  supplier?: T;
-  products?:
-    | T
-    | {
-        product?: T;
-        quantity?: T;
-        unitPrice?: T;
-        id?: T;
-      };
-  totalPrice?: T;
-  unitPrice?: T;
-  quantity?: T;
-  leadTime?: T;
-  paymentTerms?:
-    | T
-    | {
-        term?: T;
-        id?: T;
-      };
-  shippingTerms?:
-    | T
-    | {
-        term?: T;
-        id?: T;
-      };
-  validityPeriod?: T;
-  notes?: T;
-  status?: T;
-  submittedAt?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "inquiries_select".
- */
-export interface InquiriesSelect<T extends boolean = true> {
-  buyer?: T;
-  supplier?: T;
-  product?: T;
-  subject?: T;
-  message?: T;
-  inquiryType?: T;
-  status?: T;
-  attachments?: T;
-  lastRepliedAt?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "messages_select".
- */
-export interface MessagesSelect<T extends boolean = true> {
-  inquiry?: T;
-  sender?: T;
-  receiver?: T;
-  message?: T;
-  attachments?: T;
-  read?: T;
-  readAt?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "sample-requests_select".
- */
-export interface SampleRequestsSelect<T extends boolean = true> {
-  product?: T;
-  buyer?: T;
-  supplier?: T;
-  quantity?: T;
-  purpose?: T;
-  shippingAddress?: T;
-  status?: T;
-  samplePrice?: T;
-  paymentStatus?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "product-catalogs_select".
  */
 export interface ProductCatalogsSelect<T extends boolean = true> {
@@ -1859,37 +1329,6 @@ export interface OrdersSelect<T extends boolean = true> {
         zipcode?: T;
         country?: T;
       };
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "bdo-conversations_select".
- */
-export interface BdoConversationsSelect<T extends boolean = true> {
-  profileKind?: T;
-  buyer?: T;
-  vendor?: T;
-  bdo?: T;
-  ownerUser?: T;
-  lastMessageAt?: T;
-  lastMessageSender?: T;
-  bdoLastReadAt?: T;
-  status?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "bdo-chat-messages_select".
- */
-export interface BdoChatMessagesSelect<T extends boolean = true> {
-  conversation?: T;
-  sender?: T;
-  body?: T;
-  kind?: T;
-  attachments?: T;
-  readAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

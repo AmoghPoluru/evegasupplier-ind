@@ -54,14 +54,14 @@ export async function syncAllVendorProfilesForUser(
   if (!mirror) return;
 
   const vendors = await payload.find({
-    collection: 'vendors',
+    collection: 'suppliers',
     where: { user: { equals: userId } },
     limit: 100,
   });
 
   for (const v of vendors.docs) {
     await payload.update({
-      collection: 'vendors',
+      collection: 'suppliers',
       id: v.id,
       data: {
         accountName: mirror.accountName,
@@ -76,7 +76,7 @@ export async function syncAllVendorProfilesForUser(
 /** One-time / maintenance: refresh mirrors for every vendor from linked user. */
 export async function backfillVendorAccountMirrors(payload: Payload): Promise<void> {
   const vendors = await payload.find({
-    collection: 'vendors',
+    collection: 'suppliers',
     limit: 2000,
   });
   const seen = new Set<string>();

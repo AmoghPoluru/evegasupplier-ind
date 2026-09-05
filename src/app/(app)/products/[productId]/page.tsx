@@ -31,7 +31,6 @@ import { useCartStore } from '@/stores/cart-store';
 import {
   productImageGalleryUrls,
   productImagesForCart,
-  nextImageUnoptimizedForSrc,
 } from '@/lib/media-url';
 
 interface ProductDetailPageProps {
@@ -324,7 +323,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                       alt={product.title || 'Product'}
                       width={800}
                       height={800}
-                      unoptimized={nextImageUnoptimizedForSrc(selectedImageUrl)}
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -353,7 +351,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                         alt={`${product.title} ${index + 1}`}
                         width={80}
                         height={80}
-                        unoptimized={nextImageUnoptimizedForSrc(galleryUrl)}
                         className="w-full h-full object-cover"
                       />
                     </div>

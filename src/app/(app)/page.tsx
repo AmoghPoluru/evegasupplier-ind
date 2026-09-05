@@ -236,9 +236,7 @@ function HomeContent() {
     if (isLoading) return;
     if (!session?.user) return;
     const role = (session.user as { role?: string }).role;
-    if (role === 'bdo' && !browse) {
-      router.replace('/bdo/dashboard');
-    } else if (role === 'vendor' && !browse) {
+    if (role === 'vendor' && !browse) {
       router.replace('/vendor/dashboard');
     }
   }, [isLoading, session, browse, router]);
@@ -257,19 +255,6 @@ function HomeContent() {
   }
 
   const role = (session?.user as { role?: string } | undefined)?.role;
-  if (role === 'bdo' && !browse) {
-    return (
-      <div className="min-h-screen bg-background">
-        <main className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Opening coordinator dashboard…</span>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   if (role === 'vendor' && !browse) {
     return (
       <div className="min-h-screen bg-background">

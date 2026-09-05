@@ -39,7 +39,7 @@ export async function checkIfSupplier(userId: string): Promise<boolean> {
     // Fallback: Query local vendors collection (if shared database)
     try {
       const vendorsResult = await payload.find({
-        collection: 'vendors' as any,
+        collection: 'suppliers' as any,
         where: {
           user: { equals: userId },
           isActive: { equals: true },
@@ -78,7 +78,7 @@ export async function getVendorIdForUser(userId: string): Promise<string | null>
     const payload = await getPayload({ config });
     
     const vendorsResult = await payload.find({
-      collection: 'vendors' as any,
+      collection: 'suppliers' as any,
       where: {
         user: { equals: userId },
         isActive: { equals: true },

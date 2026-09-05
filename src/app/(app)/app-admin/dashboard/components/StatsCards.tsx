@@ -8,7 +8,6 @@ import {
   UserCircle,
   Package,
   DollarSign,
-  AlertCircle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -21,7 +20,7 @@ export function StatsCards() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {[...Array(7)].map((_, i) => (
           <Card key={i}>
             <CardHeader className="pb-2">
@@ -50,7 +49,24 @@ export function StatsCards() {
 
   const statCards = [
     {
-      title: "Total Products",
+      title: "Suppliers",
+      value: stats.vendors.total,
+      icon: Users,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      link: "/app-admin/suppliers",
+    },
+    {
+      title: "Buyers",
+      value: stats.buyers.total,
+      sub: `${stats.buyers.pending} pending verification`,
+      icon: UserCircle,
+      color: "text-indigo-600",
+      bgColor: "bg-indigo-50",
+      link: "/app-admin/buyers",
+    },
+    {
+      title: "Products",
       value: stats.products.total,
       icon: Package,
       color: "text-orange-600",
@@ -58,52 +74,32 @@ export function StatsCards() {
       link: "/app-admin/products",
     },
     {
-      title: "Total Suppliers",
-      value: stats.vendors.total,
-      icon: Users,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-    },
-    {
-      title: "Pending Approval",
-      value: stats.vendors.pending,
-      icon: AlertCircle,
-      color: "text-yellow-600",
-      bgColor: "bg-yellow-50",
-      link: "/app-admin/vendors/pending",
-    },
-    {
-      title: "Approved Suppliers",
-      value: stats.vendors.approved,
-      icon: Users,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-    },
-    {
-      title: "Total Orders",
+      title: "Orders",
       value: stats.orders.total,
+      sub: `${stats.orders.open} open`,
       icon: ShoppingCart,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
+      link: "/app-admin/orders",
     },
     {
-      title: "Total Buyers",
-      value: stats.buyers.total,
-      icon: UserCircle,
-      color: "text-indigo-600",
-      bgColor: "bg-indigo-50",
-    },
-    {
-      title: "Total Revenue",
-      value: `$${stats.revenue.toLocaleString()}`,
+      title: "Revenue (30d)",
+      value: `$${stats.revenue.last30Days.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
       icon: DollarSign,
       color: "text-emerald-600",
+      bgColor: "bg-emerald-50",
+    },
+    {
+      title: "Revenue (all time)",
+      value: `$${stats.revenue.allTime.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      icon: DollarSign,
+      color: "text-emerald-700",
       bgColor: "bg-emerald-50",
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {statCards.map((stat) => {
         const Icon = stat.icon;
         const CardWrapper = stat.link ? "a" : "div";
@@ -122,8 +118,8 @@ export function StatsCards() {
                   <CardTitle className="text-sm font-medium text-gray-600">
                     {stat.title}
                   </CardTitle>
-                  <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                    <Icon className={`w-4 h-4 ${stat.color}`} />
+                  <div className={`rounded-lg p-2 ${stat.bgColor}`}>
+                    <Icon className={`h-4 w-4 ${stat.color}`} />
                   </div>
                 </div>
               </CardHeader>
@@ -131,6 +127,9 @@ export function StatsCards() {
                 <div className="text-2xl font-bold text-gray-900">
                   {stat.value}
                 </div>
+                {'sub' in stat && stat.sub ? (
+                  <p className="mt-1 text-xs text-gray-500">{stat.sub}</p>
+                ) : null}
               </CardContent>
             </Card>
           </CardWrapper>

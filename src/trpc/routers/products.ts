@@ -33,7 +33,7 @@ export const productsRouter = createTRPCRouter({
       }
 
       const publishedSuppliers = await ctx.payload.find({
-        collection: 'vendors',
+        collection: 'suppliers',
         where: supplierWhere,
         pagination: false,
         depth: 0,

@@ -1,7 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Shield, LogOut, User } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,13 +16,36 @@ import {
 import { Button } from '@/components/ui/button';
 import { trpc } from '@/trpc/client';
 
+const pageTitles: Record<string, string> = {
+  '/app-admin/dashboard': 'Dashboard',
+  '/app-admin/suppliers': 'All Suppliers',
+  '/app-admin/products': 'Products',
+  '/app-admin/users': 'Users',
+  '/app-admin/buyers': 'All Buyers',
+  '/app-admin/orders': 'Orders',
+};
+
+function resolvePageTitle(pathname: string | null): string {
+  if (!pathname) return 'Admin';
+  if (pageTitles[pathname]) return pageTitles[pathname];
+  if (pathname.startsWith('/app-admin/products/new')) return 'New product';
+  if (pathname.match(/^\/app-admin\/products\/[^/]+$/)) return 'Edit product';
+  if (pathname.match(/^\/app-admin\/orders\/[^/]+$/)) return 'Order detail';
+  return 'Admin';
+}
+
 export function AdminHeader() {
   const router = useRouter();
+  const pathname = usePathname();
+  const [hasMounted, setHasMounted] = useState(false);
   const { data: session } = trpc.auth.session.useQuery();
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const handleLogout = async () => {
     try {
-      // Call logout API
       await fetch('/api/auth/logout', { method: 'POST' });
       router.push('/sign-in');
     } catch (error) {
@@ -31,20 +57,20 @@ export function AdminHeader() {
   const user = session?.user;
   const userName = user?.name || user?.email || 'Admin';
   const userEmail = user?.email || '';
+  const pageTitle = resolvePageTitle(pathname);
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-50">
-      <div className="flex items-center justify-between h-full px-6">
-        <div className="flex items-center gap-2">
-          <Shield className="w-6 h-6 text-blue-600" />
-          <span className="font-semibold text-gray-900">Admin Dashboard</span>
-        </div>
-        
-        <div className="flex items-center gap-4">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6">
+      <h1 className="text-lg font-semibold text-gray-900">{pageTitle}</h1>
+
+      <div className="flex items-center gap-4">
+        {!hasMounted ? (
+          <div className="h-9 w-24" aria-hidden />
+        ) : (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
+                <User className="h-4 w-4" />
                 <span className="hidden sm:inline">{userName}</span>
               </Button>
             </DropdownMenuTrigger>
@@ -56,13 +82,17 @@ export function AdminHeader() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/profile">My Profile</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
+                <LogOut className="mr-2 h-4 w-4" />
+                Log out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+        )}
       </div>
     </header>
   );

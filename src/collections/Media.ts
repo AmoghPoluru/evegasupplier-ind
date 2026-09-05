@@ -6,52 +6,16 @@ export const Media: CollectionConfig = {
     useAsTitle: 'filename',
   },
   access: {
-    read: () => true, // Public read access
-    create: () => true, // Allow authenticated users to upload
+    read: () => true,
+    create: () => true,
     update: () => true,
     delete: () => true,
   },
   upload: {
-    staticDir: 'media',
-    imageSizes: [
-      {
-        name: 'thumbnail',
-        width: 400,
-        height: 300,
-        position: 'centre',
-      },
-      {
-        name: 'card',
-        width: 768,
-        height: 1024,
-        position: 'centre',
-      },
-      {
-        name: 'tablet',
-        width: 1024,
-        height: undefined,
-        position: 'centre',
-      },
-      {
-        name: 'desktop',
-        width: 1920,
-        height: undefined,
-        position: 'centre',
-      },
-    ],
-    adminThumbnail: 'thumbnail',
+    disableLocalStorage: true,
     mimeTypes: ['image/*'],
   },
   fields: [
-    {
-      name: 'blobUrl',
-      type: 'text',
-      admin: {
-        hidden: true,
-        description:
-          'Original public URL when file is hosted on Vercel Blob (Payload upload `url` may be rewritten to a local `/api/media/file/` path)',
-      },
-    },
     {
       name: 'alt',
       type: 'text',
@@ -61,27 +25,4 @@ export const Media: CollectionConfig = {
       },
     },
   ],
-  hooks: {
-    beforeChange: [
-      ({ data, req, operation }) => {
-        if (operation === 'create') {
-          // Add metadata when creating
-          return {
-            ...data,
-            createdAt: new Date().toISOString(),
-          };
-        }
-        return data;
-      },
-    ],
-    afterChange: [
-      ({ doc, req, operation }) => {
-        // Log media upload
-        if (operation === 'create') {
-          console.log(`Media uploaded: ${doc.filename}`);
-        }
-        return doc;
-      },
-    ],
-  },
 };

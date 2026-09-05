@@ -1,9 +1,9 @@
 import { requireAdmin } from '@/lib/middleware/admin-auth';
 import { Suspense } from 'react';
 import { StatsCards } from './components/StatsCards';
-import { PendingVendorsCard } from './components/PendingVendorsCard';
 import { PendingBuyersCard } from './components/PendingBuyersCard';
 import { RecentOrdersWidget } from './components/RecentOrdersWidget';
+import { RecentVendorsWidget } from './components/RecentVendorsWidget';
 import { DashboardSkeleton } from './components/DashboardSkeleton';
 
 export default async function AdminDashboardPage() {
@@ -22,18 +22,16 @@ export default async function AdminDashboardPage() {
         <StatsCards />
       </Suspense>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Suspense fallback={<div className="h-32 bg-gray-200 rounded animate-pulse" />}>
-          <PendingVendorsCard />
-        </Suspense>
-        <Suspense fallback={<div className="h-32 bg-gray-200 rounded animate-pulse" />}>
-          <PendingBuyersCard />
-        </Suspense>
-      </div>
+      <Suspense fallback={<div className="h-32 bg-gray-200 rounded animate-pulse" />}>
+        <PendingBuyersCard />
+      </Suspense>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Suspense fallback={<div className="h-64 bg-gray-200 rounded animate-pulse" />}>
           <RecentOrdersWidget />
+        </Suspense>
+        <Suspense fallback={<div className="h-64 bg-gray-200 rounded animate-pulse" />}>
+          <RecentVendorsWidget />
         </Suspense>
       </div>
     </div>

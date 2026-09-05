@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { trpc } from "@/trpc/client";
 import {
@@ -13,6 +14,8 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -29,19 +32,41 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  Download,
   ExternalLink,
   FileText,
+  Save,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Product, Vendor } from "@/payload-types";
+import type { Product, Supplier } from "@/payload-types";
 import {
   dateInputToIso,
   validatedOnToInputValue,
 } from "@/lib/product-validated-on";
+import { firstProductImageUrl } from "@/lib/media-url";
+import {
+  csvRowsToProductPatches,
+  downloadTextFile,
+  parseCsv,
+  productsToCsv,
+} from "@/lib/admin-product-csv";
 import { ProductDeleteDialog } from "./ProductDeleteDialog";
+import { MassUploadPhotosDialog } from "./MassUploadPhotosDialog";
 
 type RowDraft = {
   title: string;
@@ -67,7 +92,7 @@ function draftFromProduct(p: Product): RowDraft {
 function supplierCompanyName(supplier: Product["supplier"]): string {
   if (!supplier) return "—";
   if (typeof supplier === "string") return supplier;
-  return (supplier as Vendor).companyName || "—";
+  return (supplier as Supplier).companyName || "—";
 }
 
 function isRowDirty(p: Product, d: RowDraft): boolean {
@@ -174,6 +199,13 @@ export function AdminProductsList() {
 
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState("");
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     title: string;
@@ -190,6 +222,7 @@ export function AdminProductsList() {
 
   useEffect(() => {
     setDrafts({});
+    setSelectedIds(new Set());
   }, [page, debouncedSearch, supplierId, sort]);
 
   const { data, isLoading } = trpc.admin.products.list.useQuery({
@@ -226,6 +259,9 @@ export function AdminProductsList() {
     },
   });
 
+  const bulkUpdateMutation = trpc.admin.products.bulkUpdate.useMutation();
+  const bulkDeleteMutation = trpc.admin.products.bulkDelete.useMutation();
+
   const getDraft = (p: Product): RowDraft =>
     drafts[p.id] ?? draftFromProduct(p);
 
@@ -259,6 +295,165 @@ export function AdminProductsList() {
     }
   };
 
+  const dirtyCount =
+    data?.docs.reduce((n, raw) => {
+      const p = raw as Product;
+      return isRowDirty(p, getDraft(p)) ? n + 1 : n;
+    }, 0) ?? 0;
+
+  const handleSaveAll = async () => {
+    if (!data?.docs.length) return;
+    const items: Array<{
+      id: string;
+      title?: string;
+      category?: string;
+      unitPrice?: number | null;
+      moq?: number | null;
+      actualSupplierUrl?: string;
+      validatedOn?: string | null;
+    }> = [];
+
+    for (const raw of data.docs) {
+      const p = raw as Product;
+      const d = getDraft(p);
+      if (!isRowDirty(p, d)) continue;
+      if (!d.title.trim()) {
+        toast.error(`Title required for “${p.title || p.id}”`);
+        return;
+      }
+      try {
+        const payload = buildUpdatePayload(p, d);
+        if (payload) items.push(payload);
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : "Invalid values");
+        return;
+      }
+    }
+
+    if (items.length === 0) {
+      toast.message("No changes to save");
+      return;
+    }
+
+    setSavingAll(true);
+    try {
+      const result = await bulkUpdateMutation.mutateAsync({ items });
+      await utils.admin.products.list.invalidate();
+      setDrafts({});
+      if (result.errors?.length) {
+        toast.warning(
+          `Updated ${result.updatedCount}; ${result.errors.length} failed`,
+        );
+      } else {
+        toast.success(`Saved ${result.updatedCount} product(s)`);
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Bulk save failed");
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      const exported = await utils.admin.products.list.fetch({
+        page: 1,
+        limit: 200,
+        search: debouncedSearch.trim() || undefined,
+        supplierId,
+        sort,
+      });
+      const csv = productsToCsv(exported.docs as Product[]);
+      downloadTextFile(
+        `products-export-${new Date().toISOString().slice(0, 10)}.csv`,
+        csv,
+        "text/csv;charset=utf-8",
+      );
+      toast.success(`Exported ${exported.docs.length} product(s)`);
+      if (exported.totalDocs > exported.docs.length) {
+        toast.message(
+          `Showing first ${exported.docs.length} of ${exported.totalDocs}. Narrow filters to export the rest.`,
+        );
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Export failed");
+    }
+  };
+
+  const handleImportFile = async (file: File) => {
+    setImportBusy(true);
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      const { items, errors } = csvRowsToProductPatches(rows);
+      if (errors.length && items.length === 0) {
+        toast.error(errors[0]);
+        return;
+      }
+      if (items.length === 0) {
+        toast.error("No valid rows to import");
+        return;
+      }
+      if (items.length > 200) {
+        toast.error("Import is limited to 200 rows at a time");
+        return;
+      }
+
+      const result = await bulkUpdateMutation.mutateAsync({ items });
+      await utils.admin.products.list.invalidate();
+      setImportOpen(false);
+
+      if (result.errors?.length || errors.length) {
+        toast.warning(
+          `Updated ${result.updatedCount}. Parse issues: ${errors.length}. Update errors: ${result.errors?.length ?? 0}.`,
+        );
+      } else {
+        toast.success(`Imported updates for ${result.updatedCount} product(s)`);
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  const toggleSelect = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (bulkDeleteConfirm !== "DELETE" || selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      const result = await bulkDeleteMutation.mutateAsync({
+        ids: Array.from(selectedIds),
+      });
+      await utils.admin.products.list.invalidate();
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      setBulkDeleteConfirm("");
+      if (result.errors?.length) {
+        toast.warning(
+          `Deleted ${result.deletedCount}; ${result.errors.length} failed`,
+        );
+      } else {
+        toast.success(`Deleted ${result.deletedCount} product(s)`);
+      }
+      if (data && result.deletedCount >= data.docs.length && page > 1) {
+        setPage((p) => Math.max(1, p - 1));
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Bulk delete failed");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -276,13 +471,42 @@ export function AdminProductsList() {
     );
   }
 
+  const pageIds = data.docs.map((d) => (d as Product).id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const somePageSelected =
+    pageIds.some((id) => selectedIds.has(id)) && !allPageSelected;
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void handleExportCsv()}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Export CSV
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setImportOpen(true)}
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          Import CSV
+        </Button>
+        <MassUploadPhotosDialog />
         <Button type="button" asChild>
           <Link href="/app-admin/products/new">New product</Link>
         </Button>
       </div>
+      <p className="text-sm text-gray-600">
+        Edit cells like a spreadsheet, then use row <strong>Save</strong> or{" "}
+        <strong>Save all changes</strong>. For Excel/Google Sheets: Export CSV →
+        edit → Import CSV (keep the <code className="text-xs">id</code> column).
+        Full form: open Editor.
+      </p>
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:max-w-md">
           <label className="text-sm font-medium text-gray-700">Search</label>
@@ -339,6 +563,34 @@ export function AdminProductsList() {
                 <SelectItem value="validatedOn">Validated (oldest)</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              type="button"
+              size="sm"
+              disabled={dirtyCount === 0 || savingAll}
+              onClick={() => void handleSaveAll()}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {savingAll
+                ? "Saving…"
+                : dirtyCount > 0
+                  ? `Save all changes (${dirtyCount})`
+                  : "Save all changes"}
+            </Button>
+            {selectedIds.size > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-red-200 text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  setBulkDeleteConfirm("");
+                  setBulkDeleteOpen(true);
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete selected ({selectedIds.size})
+              </Button>
+            ) : null}
           </div>
           <div className="text-sm text-gray-600">
             {data.totalDocs} product{data.totalDocs !== 1 ? "s" : ""} total
@@ -349,6 +601,26 @@ export function AdminProductsList() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={
+                      allPageSelected
+                        ? true
+                        : somePageSelected
+                          ? "indeterminate"
+                          : false
+                    }
+                    onCheckedChange={(checked) => {
+                      if (checked === true) {
+                        setSelectedIds(new Set(pageIds));
+                      } else {
+                        setSelectedIds(new Set());
+                      }
+                    }}
+                    aria-label="Select all on this page"
+                  />
+                </TableHead>
+                <TableHead className="w-[72px]">Image</TableHead>
                 <TableHead className="min-w-[140px]">Title</TableHead>
                 <TableHead className="w-20 text-center shrink-0">
                   Editor
@@ -370,7 +642,7 @@ export function AdminProductsList() {
             <TableBody>
               {data.docs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-12">
+                  <TableCell colSpan={12} className="text-center py-12">
                     <p className="text-lg font-semibold text-gray-900">
                       No products found
                     </p>
@@ -384,9 +656,41 @@ export function AdminProductsList() {
                   const p = raw as Product;
                   const d = getDraft(p);
                   const dirty = isRowDirty(p, d);
+                  const imageUrl = firstProductImageUrl(p.images);
+                  const selected = selectedIds.has(p.id);
 
                   return (
-                    <TableRow key={p.id}>
+                    <TableRow key={p.id} data-state={selected ? "selected" : undefined}>
+                      <TableCell className="align-middle">
+                        <Checkbox
+                          checked={selected}
+                          onCheckedChange={(checked) =>
+                            toggleSelect(p.id, checked === true)
+                          }
+                          aria-label={`Select ${p.title}`}
+                        />
+                      </TableCell>
+                      <TableCell className="align-middle">
+                        {imageUrl ? (
+                          <div className="relative h-12 w-12 overflow-hidden rounded border bg-gray-50">
+                            <Image
+                              src={imageUrl}
+                              alt={p.title || "Product"}
+                              fill
+                              sizes="48px"
+                              className="object-cover"
+                              unoptimized={
+                                imageUrl.startsWith("/api/media/") ||
+                                imageUrl.includes("/api/media/")
+                              }
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex h-12 w-12 items-center justify-center rounded border bg-gray-100 text-[10px] text-gray-400">
+                            —
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="align-top">
                         <Input
                           value={d.title}
@@ -583,6 +887,89 @@ export function AdminProductsList() {
           }}
         />
       ) : null}
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Import CSV mass update</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-gray-600">
+            <p>
+              Upload a CSV exported from this page (or matching columns). Required:{" "}
+              <code className="text-xs">id</code>. Updatable: title, category,
+              unitPrice, moq, actualSupplierUrl, validatedOn (YYYY-MM-DD).
+            </p>
+            <p>
+              Do not change <code className="text-xs">id</code>. Max 200 rows.
+            </p>
+            <Input
+              type="file"
+              accept=".csv,text/csv"
+              disabled={importBusy}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void handleImportFile(file);
+              }}
+            />
+            {importBusy ? (
+              <p className="text-sm text-gray-500">Importing…</p>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={bulkDeleteOpen}
+        onOpenChange={(open) => {
+          setBulkDeleteOpen(open);
+          if (!open) setBulkDeleteConfirm("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Delete {selectedIds.size} product
+              {selectedIds.size === 1 ? "" : "s"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  Permanently remove the selected products? This cannot be
+                  undone.
+                </p>
+                <div className="pt-2">
+                  <Label htmlFor="bulk-delete-confirm">
+                    Type <strong>DELETE</strong> to confirm
+                  </Label>
+                  <Input
+                    id="bulk-delete-confirm"
+                    className="mt-2"
+                    value={bulkDeleteConfirm}
+                    onChange={(e) => setBulkDeleteConfirm(e.target.value)}
+                    placeholder="DELETE"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={bulkDeleteConfirm !== "DELETE" || bulkDeleting}
+              className="bg-red-600 hover:bg-red-700"
+              onClick={(e) => {
+                e.preventDefault();
+                void handleBulkDelete();
+              }}
+            >
+              {bulkDeleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

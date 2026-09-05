@@ -47,7 +47,7 @@ export async function getUserProfileStatus(): Promise<UserProfileStatus> {
 
   // Find supplier (vendor) associated with this user
   const vendorsResult = await payload.find({
-    collection: 'vendors' as any,
+    collection: 'suppliers' as any,
     where: { user: { equals: user.id } },
     limit: 1,
   });
