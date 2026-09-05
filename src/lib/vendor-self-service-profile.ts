@@ -91,6 +91,8 @@ export const vendorSelfServiceProfileSchema = z.object({
   rndCapability: z.string().max(10000).optional(),
   warehouseInformation: z.string().max(10000).optional(),
   shippingCapabilities: z.string().max(10000).optional(),
+  /** OpenAI API key for photo mass-upload AI suggestions */
+  openaiApiKey: z.string().max(500).optional(),
 });
 
 export type VendorSelfServiceProfileInput = z.infer<typeof vendorSelfServiceProfileSchema>;
@@ -171,5 +173,8 @@ export function buildVendorSelfServicePatch(
     rndCapability: input.rndCapability?.trim() ?? '',
     warehouseInformation: input.warehouseInformation?.trim() ?? '',
     shippingCapabilities: input.shippingCapabilities?.trim() ?? '',
+    ...(input.openaiApiKey !== undefined
+      ? { openaiApiKey: input.openaiApiKey.trim() }
+      : {}),
   };
 }

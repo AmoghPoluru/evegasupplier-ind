@@ -309,6 +309,99 @@ export const adminRouter = createTRPCRouter({
       }),
 
     /**
+     * Create supplier (user account + supplier profile)
+     */
+    create: adminProcedure
+      .input(
+        z.object({
+          email: z.string().email(),
+          password: z.string().min(8, 'Password must be at least 8 characters'),
+          name: z.string().min(1).optional(),
+          companyName: z.string().min(1, 'Company name is required'),
+          companyType: z
+            .enum(['manufacturer', 'trading', 'agent', 'distributor', 'other'])
+            .optional(),
+          factoryLocation: z.string().optional(),
+          status: z
+            .enum(['pending', 'approved', 'rejected', 'suspended'])
+            .optional()
+            .default('approved'),
+          isActive: z.boolean().optional().default(true),
+          verifiedSupplier: z.boolean().optional().default(false),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const payload = ctx.payload;
+        const email = input.email.trim().toLowerCase();
+
+        const existingUsers = await payload.find({
+          collection: 'users',
+          where: { email: { equals: email } },
+          limit: 1,
+        });
+
+        let userId: string;
+
+        if (existingUsers.docs.length > 0) {
+          const existingUser = existingUsers.docs[0]!;
+          userId = String(existingUser.id);
+
+          const existingVendor = await payload.find({
+            collection: 'suppliers',
+            where: { user: { equals: userId } },
+            limit: 1,
+          });
+
+          if (existingVendor.docs.length > 0) {
+            throw new TRPCError({
+              code: 'CONFLICT',
+              message: 'This email already has a supplier profile',
+            });
+          }
+
+          const role = (existingUser as { role?: string }).role;
+          if (role !== 'admin' && role !== 'bdo' && role !== 'vendor') {
+            await payload.update({
+              collection: 'users',
+              id: userId,
+              data: { role: 'vendor' },
+            });
+          }
+        } else {
+          const user = await payload.create({
+            collection: 'users',
+            data: {
+              email,
+              password: input.password,
+              name: input.name?.trim() || input.companyName.trim(),
+              role: 'vendor',
+              oauthProvider: 'email',
+            },
+          });
+          userId = String(user.id);
+        }
+
+        const vendor = await payload.create({
+          collection: 'suppliers',
+          data: {
+            user: userId,
+            companyName: input.companyName.trim(),
+            companyType: input.companyType,
+            factoryLocation: input.factoryLocation?.trim() || undefined,
+            status: input.status,
+            isActive: input.isActive,
+            verifiedSupplier: input.verifiedSupplier,
+          },
+        });
+
+        return {
+          vendor,
+          success: true as const,
+          message: 'Supplier created successfully',
+        };
+      }),
+
+    /**
      * Get recent vendors
      */
     recent: adminProcedure

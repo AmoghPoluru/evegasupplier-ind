@@ -143,13 +143,28 @@ export const Suppliers: CollectionConfig = {
           'OpenAI API key for AI product titles/descriptions from this supplier photos during mass upload. Not read from server env when set here. Never shown on the public marketplace.',
       },
       access: {
-        // Collection read is public — keep this secret off the marketplace API.
-        read: ({ req }) => {
-          const role = (req.user as { role?: string } | undefined)?.role;
-          return role === 'admin' || role === 'bdo';
+        read: ({ req, doc }) => {
+          if (!req?.user) return false;
+          const role = (req.user as { role?: string }).role;
+          if (role === 'admin' || role === 'bdo') return true;
+          const uid = (req.user as { id: string }).id;
+          const ownerId =
+            typeof doc?.user === 'object' && doc?.user != null
+              ? (doc.user as { id: string }).id
+              : (doc?.user as string | undefined);
+          return !!(ownerId && ownerId === uid);
         },
-        update: ({ req }) =>
-          (req.user as { role?: string } | undefined)?.role === 'admin',
+        update: ({ req, doc }) => {
+          if (!req?.user) return false;
+          const role = (req.user as { role?: string }).role;
+          if (role === 'admin') return true;
+          const uid = (req.user as { id: string }).id;
+          const ownerId =
+            typeof doc?.user === 'object' && doc?.user != null
+              ? (doc.user as { id: string }).id
+              : (doc?.user as string | undefined);
+          return !!(ownerId && ownerId === uid);
+        },
       },
     },
     // Task 98: companyType

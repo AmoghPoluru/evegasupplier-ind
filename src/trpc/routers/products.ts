@@ -58,6 +58,9 @@ export const productsRouter = createTRPCRouter({
         ];
       }
 
+      where.isPrivate = { not_equals: true };
+      where.isArchived = { not_equals: true };
+
       const sortBy: Record<typeof input.sort, string> = {
         newest: '-createdAt',
         priceAsc: 'unitPrice',
@@ -146,6 +149,9 @@ export const productsRouter = createTRPCRouter({
         where.isArchived = { equals: false };
       } else if (input.status === 'archived') {
         where.isArchived = { equals: true };
+      } else {
+        // "All" = active catalog (draft + published), hide archived/deleted
+        where.isArchived = { not_equals: true };
       }
 
       const result = await ctx.payload.find({

@@ -70,7 +70,7 @@ export function ProductsTable({
 
   const deleteMutation = trpc.vendors.products.delete.useMutation({
     onSuccess: () => {
-      toast.success('Product deleted successfully');
+      toast.success('Product removed from your catalog');
       utils.products.getByVendor.invalidate();
       setDeleteDialogOpen(false);
       setProductToDelete(null);
