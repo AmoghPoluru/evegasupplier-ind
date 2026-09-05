@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { trpc } from '@/trpc/client';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -11,7 +13,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { SupplierActions } from './SupplierActions';
@@ -23,9 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { SupplierCreateDialog } from './SupplierCreateDialog';
 
 export function AllSuppliersList() {
+  const [createOpen, setCreateOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string | undefined>(undefined);
   const [isActive, setIsActive] = useState<boolean | undefined>(undefined);
@@ -101,6 +103,13 @@ export function AllSuppliersList() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add supplier
+        </Button>
+      </div>
+
       <SupplierFilters
         onFilterChange={handleFilterChange}
         initialFilters={{ 
@@ -236,6 +245,11 @@ export function AllSuppliersList() {
           </div>
         </div>
       )}
+      <SupplierCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }

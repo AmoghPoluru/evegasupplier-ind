@@ -23,7 +23,6 @@ export async function enhanceProductImageBuffer(
     originalName.replace(/\.[^.]+$/, '').trim() || 'product';
   const enhancedName = `${base}-enhanced.jpg`;
 
-  // Product photos: JPEG is a good default after enhance
   const buffer = await pipeline
     .jpeg({ quality: 88, mozjpeg: true })
     .toBuffer();

@@ -113,6 +113,7 @@ function vendorToFormDefaults(
     rndCapability: (v.rndCapability as string | undefined) ?? '',
     warehouseInformation: (v.warehouseInformation as string | undefined) ?? '',
     shippingCapabilities: (v.shippingCapabilities as string | undefined) ?? '',
+    openaiApiKey: (v.openaiApiKey as string | undefined) ?? '',
   };
 }
 
@@ -910,6 +911,36 @@ export function VendorAccountSettingsClient() {
                   <FormLabel>Shipping & logistics</FormLabel>
                   <FormControl>
                     <Textarea rows={3} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Mass upload (AI)</CardTitle>
+            <CardDescription>
+              Optional OpenAI API key used when you mass-upload product photos.
+              Stored on your supplier profile only — not shared on the marketplace.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FormField
+              control={form.control}
+              name="openaiApiKey"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>OPENAI_API_KEY</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="sk-…"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

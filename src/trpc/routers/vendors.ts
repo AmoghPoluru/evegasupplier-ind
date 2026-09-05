@@ -82,13 +82,36 @@ export const vendorsRouter = createTRPCRouter({
   getByUser: baseProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const result = await ctx.payload.find({
+      const payload = ctx.payload;
+      const { user } = await payload.auth({ headers: ctx.headers });
+
+      const result = await payload.find({
         collection: 'suppliers',
         where: { user: { equals: input.userId } },
         limit: 1,
         depth: 0,
       });
-      return result.docs[0] ?? null;
+      const vendor = result.docs[0] ?? null;
+      if (!vendor) return null;
+
+      const isOwner = user?.id === input.userId;
+      const isAdmin = (user as { role?: string } | undefined)?.role === 'admin';
+      if (isOwner || isAdmin) {
+        const full = await payload.findByID({
+          collection: 'suppliers',
+          id: vendor.id,
+          depth: 0,
+          overrideAccess: true,
+          showHiddenFields: true,
+        });
+        return full ?? vendor;
+      }
+
+      const { openaiApiKey: _omit, ...publicVendor } = vendor as {
+        openaiApiKey?: unknown;
+        [key: string]: unknown;
+      };
+      return publicVendor;
     }),
 
   updateAccountSettings: baseProcedure
@@ -504,8 +527,8 @@ export const vendorsRouter = createTRPCRouter({
           title: z.string().min(1),
           description: z.string().optional(),
           category: z.string().optional(),
-          unitPrice: z.number().min(0),
-          moq: z.number().int().min(1),
+          unitPrice: z.number().min(0).nullable().optional(),
+          moq: z.number().int().min(0).nullable().optional(),
           sku: z.string().optional(),
           actualSupplierUrl: z
             .string()
@@ -533,13 +556,119 @@ export const vendorsRouter = createTRPCRouter({
           collection: 'products',
           data: {
             ...input,
+            unitPrice: input.unitPrice ?? null,
+            moq: input.moq ?? null,
             supplier: vendorId,
             isPrivate: true, // Default to draft
             isArchived: false,
           } as any,
+          overrideAccess: true,
         });
 
         return product;
+      }),
+
+    suggestFromImage: baseProcedure
+      .input(
+        z.object({
+          mediaId: z.string().min(1),
+          fallbackTitle: z.string().min(1).optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const vendorId = await getVendorIdFromSession(ctx);
+        if (!vendorId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Vendor not found. Please ensure you are logged in as a vendor.',
+          });
+        }
+
+        const media = await ctx.payload.findByID({
+          collection: 'media',
+          id: input.mediaId,
+          depth: 0,
+          overrideAccess: true,
+        });
+        if (!media) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Media not found',
+          });
+        }
+
+        const { resolveMediaDisplayUrl } = await import('@/lib/media-url');
+        const { suggestProductCopyFromImageUrl } = await import(
+          '@/lib/openai-product-from-image'
+        );
+
+        const imageUrl = resolveMediaDisplayUrl(media as any, {
+          allowIdProxy: false,
+        });
+        if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'Media has no public image URL for AI (need Blob CDN URL).',
+          });
+        }
+
+        const fallback =
+          input.fallbackTitle?.trim() ||
+          (typeof media.alt === 'string' && media.alt.trim()) ||
+          'Product';
+
+        let supplierKey: string | null = null;
+        try {
+          const vendor = await ctx.payload.findByID({
+            collection: 'suppliers',
+            id: vendorId,
+            depth: 0,
+            overrideAccess: true,
+            showHiddenFields: true,
+          });
+          const raw = (vendor as { openaiApiKey?: unknown })?.openaiApiKey;
+          supplierKey =
+            typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+        } catch {
+          supplierKey = null;
+        }
+
+        if (!supplierKey) {
+          return {
+            title: fallback,
+            description: '',
+            unitPrice: null as number | null,
+            usedAi: false as const,
+            skipReason:
+              'No OPENAI_API_KEY on your supplier profile — set it in Account Settings or ask your admin',
+            keySource: 'none' as const,
+          };
+        }
+
+        try {
+          const copy = await suggestProductCopyFromImageUrl(
+            imageUrl,
+            fallback,
+            { apiKey: supplierKey, allowEnvFallback: false },
+          );
+          return {
+            title: copy.title,
+            description: copy.description,
+            unitPrice: copy.unitPrice,
+            usedAi: true as const,
+            skipReason: null as string | null,
+            keySource: 'supplier' as const,
+          };
+        } catch (e: unknown) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message:
+              e instanceof Error
+                ? e.message
+                : 'Failed to analyze image with AI',
+          });
+        }
       }),
 
     update: baseProcedure
@@ -598,6 +727,7 @@ export const vendorsRouter = createTRPCRouter({
           collection: 'products',
           id,
           data: updateData as any,
+          overrideAccess: true,
         });
 
         return product;
@@ -629,11 +759,11 @@ export const vendorsRouter = createTRPCRouter({
           throw new Error('You do not have permission to delete this product');
         }
 
-        // Soft delete by setting isArchived to true
         await ctx.payload.update({
           collection: 'products',
           id: input.id,
-          data: { isArchived: true } as any,
+          data: { isArchived: true },
+          overrideAccess: true,
         });
 
         return { success: true };
@@ -684,13 +814,15 @@ export const vendorsRouter = createTRPCRouter({
               await ctx.payload.update({
                 collection: 'products',
                 id,
-                data: { isArchived: true } as any,
+                data: { isArchived: true },
+                overrideAccess: true,
               });
             } else {
               await ctx.payload.update({
                 collection: 'products',
                 id,
                 data: updateData,
+                overrideAccess: true,
               });
             }
             return { id, success: true };

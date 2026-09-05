@@ -244,6 +244,29 @@ export const Products: CollectionConfig = {
       },
     },
     {
+      name: 'sku',
+      type: 'text',
+      admin: {
+        description: 'Stock keeping unit / product code',
+      },
+    },
+    {
+      name: 'isPrivate',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Draft — hidden from marketplace when true',
+      },
+    },
+    {
+      name: 'isArchived',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Archived — removed from active vendor catalog',
+      },
+    },
+    {
       name: 'validatedOn',
       type: 'date',
       label: 'Validated on',

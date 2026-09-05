@@ -110,7 +110,6 @@ export function SupplierEditDialog({
       typeof supplier?.openaiApiKey === 'string' &&
       supplier.openaiApiKey.length > 0
     ) {
-      // Explicitly clear a previously stored key
       updateData.openaiApiKey = null;
     }
 
