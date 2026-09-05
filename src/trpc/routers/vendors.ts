@@ -8,6 +8,7 @@ import {
   vendorSelfServiceProfileSchema,
 } from '@/lib/vendor-self-service-profile';
 import { hydrateProductImages } from '@/lib/hydrate-product-images';
+import type { Supplier } from '@/payload-types';
 
 // Helper to get vendor ID from session
 async function getVendorIdFromSession(ctx: any): Promise<string | null> {
@@ -104,14 +105,13 @@ export const vendorsRouter = createTRPCRouter({
           overrideAccess: true,
           showHiddenFields: true,
         });
-        return full ?? vendor;
+        return (full ?? vendor) as Supplier;
       }
 
-      const { openaiApiKey: _omit, ...publicVendor } = vendor as {
-        openaiApiKey?: unknown;
-        [key: string]: unknown;
+      const { openaiApiKey: _omit, ...publicVendor } = vendor as Supplier & {
+        openaiApiKey?: string | null;
       };
-      return publicVendor;
+      return publicVendor as Omit<Supplier, 'openaiApiKey'>;
     }),
 
   updateAccountSettings: baseProcedure
