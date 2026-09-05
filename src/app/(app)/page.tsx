@@ -3,7 +3,7 @@
 import { useState, useLayoutEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { trpc } from '@/trpc/client';
-import { ProductGridCard } from '@/components/marketplace/ProductGridCard';
+import { VendorSection } from '@/components/marketplace/VendorSection';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -29,16 +29,15 @@ import { AlertCircle, Loader2, Search } from 'lucide-react';
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Sort: Newest' },
-  { value: 'priceAsc', label: 'Price: low to high' },
-  { value: 'priceDesc', label: 'Price: high to low' },
-  { value: 'moqAsc', label: 'MOQ: low to high' },
+  { value: 'verified', label: 'Sort: Verified first' },
+  { value: 'name', label: 'Sort: Name A–Z' },
 ] as const;
 
 type SortOption = (typeof SORT_OPTIONS)[number]['value'];
 
 function SuppliersMarketplaceList() {
   const searchParams = useSearchParams();
-  const limit = 20;
+  const limit = 10;
 
   const [searchInput, setSearchInput] = useState('');
   const [sort, setSort] = useState<SortOption>('newest');
@@ -48,7 +47,6 @@ function SuppliersMarketplaceList() {
   const search = useDebounce(searchInput, 300);
   const supplierId = searchParams.get('supplier') || undefined;
 
-  // Reset pagination whenever the active query changes (derived state, no effect).
   const filterKey = JSON.stringify([supplierId, search, sort, verifiedOnly]);
   const [activeFilterKey, setActiveFilterKey] = useState(filterKey);
   if (activeFilterKey !== filterKey) {
@@ -56,27 +54,33 @@ function SuppliersMarketplaceList() {
     setPage(1);
   }
 
-  const { data, isLoading, error } = trpc.products.list.useQuery({
+  const { data, isLoading, error } = trpc.vendors.marketplace.list.useQuery({
     limit,
     page,
     supplierId,
     search: search || undefined,
     sort,
     verified: verifiedOnly || undefined,
+    includeProducts: true,
   });
 
-  const products = data?.products ?? [];
+  const vendors = data?.vendors ?? [];
   const totalPages = data?.totalPages ?? 0;
 
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-6">
-        {/* Heading + slim toolbar (no banner, no category nav) */}
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-lg font-bold">All products</h1>
+            <h1 className="text-lg font-bold">
+              {supplierId ? 'Supplier' : 'Browse suppliers'}
+            </h1>
             <p className="text-xs text-muted-foreground">
-              {data ? `${data.totalDocs} products` : 'Loading products'}
+              {data ?
+                supplierId ?
+                  `${data.totalDocs} supplier`
+                : `${data.totalDocs} suppliers`
+              : 'Loading suppliers'}
             </p>
           </div>
 
@@ -86,7 +90,7 @@ function SuppliersMarketplaceList() {
               <Input
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search products or SKU"
+                placeholder="Search suppliers"
                 className="h-9 w-56 pl-8 text-xs"
               />
             </div>
@@ -117,7 +121,7 @@ function SuppliersMarketplaceList() {
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Loading products...</span>
+            <span className="ml-2 text-muted-foreground">Loading suppliers...</span>
           </div>
         )}
 
@@ -127,7 +131,7 @@ function SuppliersMarketplaceList() {
               <div className="flex items-center gap-2 text-destructive">
                 <AlertCircle className="w-5 h-5" />
                 <div>
-                  <p className="font-semibold">Error loading products</p>
+                  <p className="font-semibold">Error loading suppliers</p>
                   <p className="text-sm">{error.message}</p>
                 </div>
               </div>
@@ -135,20 +139,19 @@ function SuppliersMarketplaceList() {
           </Card>
         )}
 
-        {/* Flat product grid: every product, vendor shown per card */}
-        {products.length > 0 && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {products.map((product) => (
-              <ProductGridCard key={product.id} product={product} />
+        {vendors.length > 0 && (
+          <div className="space-y-8">
+            {vendors.map((vendor) => (
+              <VendorSection key={vendor.id} vendor={vendor} />
             ))}
           </div>
         )}
 
-        {data && products.length === 0 && (
+        {data && vendors.length === 0 && (
           <Card>
             <CardContent className="pt-6">
               <div className="text-center py-12">
-                <p className="text-lg font-semibold text-foreground mb-2">No products found</p>
+                <p className="text-lg font-semibold text-foreground mb-2">No suppliers found</p>
                 <p className="text-sm text-muted-foreground">
                   Try clearing the search or verified filters.
                 </p>
@@ -214,7 +217,7 @@ function SuppliersMarketplaceList() {
             </Pagination>
             <div className="text-center mt-4 text-sm text-muted-foreground">
               Showing {(page - 1) * limit + 1} to {Math.min(page * limit, data.totalDocs)} of{' '}
-              {data.totalDocs} products
+              {data.totalDocs} suppliers
             </div>
           </div>
         )}

@@ -118,7 +118,7 @@ export function Navbar() {
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo/Brand */}
         <Link href={homeHref} className="flex items-center space-x-2">
-          <span className="text-xl font-bold">EvegaSupply</span>
+          <span className="text-xl font-bold">b2bVastra</span>
         </Link>
 
         {/* Navigation Links - Center */}
