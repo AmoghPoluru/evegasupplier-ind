@@ -702,6 +702,18 @@ export interface Product {
    */
   category?: string | null;
   /**
+   * Stock keeping unit / product code
+   */
+  sku?: string | null;
+  /**
+   * Draft — hidden from marketplace when true
+   */
+  isPrivate?: boolean | null;
+  /**
+   * Archived — removed from active vendor catalog
+   */
+  isArchived?: boolean | null;
+  /**
    * Date an admin validated this product listing (optional). Clear in admin UI to unset.
    */
   validatedOn?: string | null;
@@ -1251,6 +1263,9 @@ export interface ProductsSelect<T extends boolean = true> {
   originCountry?: T;
   images?: T;
   category?: T;
+  sku?: T;
+  isPrivate?: T;
+  isArchived?: T;
   validatedOn?: T;
   updatedAt?: T;
   createdAt?: T;
