@@ -66,7 +66,7 @@ import {
   productsToCsv,
 } from "@/lib/admin-product-csv";
 import { ProductDeleteDialog } from "./ProductDeleteDialog";
-import { MassUploadPhotosDialog } from "./MassUploadPhotosDialog";
+import { MassUploadPhotosDialog } from "@/components/products/MassUploadPhotosDialog";
 
 type RowDraft = {
   title: string;
@@ -496,7 +496,16 @@ export function AdminProductsList() {
           <Upload className="mr-2 h-4 w-4" />
           Import CSV
         </Button>
-        <MassUploadPhotosDialog />
+        <MassUploadPhotosDialog
+          mode="admin"
+          supplierId={supplierId}
+          companyName={
+            supplierId
+              ? vendorsData?.vendors?.find((v) => v.id === supplierId)
+                  ?.companyName
+              : undefined
+          }
+        />
         <Button type="button" asChild>
           <Link href="/app-admin/products/new">New product</Link>
         </Button>
