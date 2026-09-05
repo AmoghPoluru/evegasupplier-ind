@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Images, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
@@ -14,7 +14,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { uploadMediaFile } from "@/lib/upload-media-file";
 import { trpc } from "@/trpc/client";
 
 const ACCEPTED = {
@@ -23,54 +32,22 @@ const ACCEPTED = {
   "image/webp": [],
 };
 
-async function uploadMediaFile(file: File, enhance: boolean): Promise<string> {
-  const formData = new FormData();
-  formData.append("file", file);
-  if (enhance) formData.append("enhance", "1");
-
-  const response = await fetch("/api/media", {
-    method: "POST",
-    body: formData,
-    credentials: "include",
-  });
-
-  let payloadUnknown: unknown;
-  try {
-    payloadUnknown = await response.json();
-  } catch {
-    payloadUnknown = null;
-  }
-
-  if (!response.ok) {
-    const errMsg =
-      payloadUnknown &&
-      typeof payloadUnknown === "object" &&
-      "error" in payloadUnknown &&
-      typeof (payloadUnknown as { error: unknown }).error === "string"
-        ? (payloadUnknown as { error: string }).error
-        : `Upload failed (${response.status})`;
-    throw new Error(errMsg);
-  }
-
-  const data = payloadUnknown as { doc?: { id?: unknown } } | null;
-  const rawId = data?.doc?.id;
-  const newId = rawId !== undefined && rawId !== null ? String(rawId) : "";
-  if (!newId) {
-    throw new Error("Upload succeeded but no media id returned");
-  }
-  return newId;
-}
-
-type MassUploadPhotosDialogProps = {
+export type MassUploadPhotosDialogProps = {
+  /** Vendor portal uses logged-in supplier; admin assigns to a supplier. */
+  mode: "vendor" | "admin";
+  /** Admin: pre-selected supplier (e.g. from list filter). */
+  supplierId?: string;
   companyName?: string | null;
 };
 
 /**
- * Mass-upload photos → enhance → AI title/description → create product per photo.
- * Scoped to the logged-in supplier (no supplier picker).
+ * Mass-upload photos → enhance (when possible) → AI copy → create one product per photo.
+ * Shared by `/vendor/products` and `/app-admin/products`.
  */
 export function MassUploadPhotosDialog({
-  companyName,
+  mode,
+  supplierId: supplierIdProp,
+  companyName: companyNameProp,
 }: MassUploadPhotosDialogProps) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -80,21 +57,58 @@ export function MassUploadPhotosDialog({
     total: number;
     phase?: string;
   } | null>(null);
+  const [adminSupplierId, setAdminSupplierId] = useState("");
 
   const utils = trpc.useUtils();
-  const createMutation = trpc.vendors.products.create.useMutation();
-  const suggestMutation = trpc.vendors.products.suggestFromImage.useMutation();
+
+  const vendorCreate = trpc.vendors.products.create.useMutation();
+  const vendorSuggest = trpc.vendors.products.suggestFromImage.useMutation();
+  const adminCreate = trpc.admin.products.create.useMutation();
+  const adminSuggest = trpc.admin.products.suggestFromImage.useMutation();
+
+  const { data: adminVendorsData, isLoading: adminVendorsLoading } =
+    trpc.admin.vendors.list.useQuery(
+      { page: 1, limit: 100, sort: "companyName" },
+      { enabled: open && mode === "admin" },
+    );
+
+  const adminSuppliers = adminVendorsData?.vendors ?? [];
+
+  const resolvedAdminSupplierId =
+    supplierIdProp?.trim() ||
+    adminSupplierId.trim() ||
+    (adminSuppliers.length === 1 ? String(adminSuppliers[0]!.id) : "");
+
+  const resolvedCompanyName = useMemo(() => {
+    if (companyNameProp?.trim()) return companyNameProp.trim();
+    if (mode === "admin" && resolvedAdminSupplierId) {
+      const match = adminSuppliers.find(
+        (v) => String(v.id) === resolvedAdminSupplierId,
+      );
+      return match?.companyName ?? null;
+    }
+    return null;
+  }, [
+    companyNameProp,
+    mode,
+    resolvedAdminSupplierId,
+    adminSuppliers,
+  ]);
 
   const reset = useCallback(() => {
     setFiles([]);
     setBusy(false);
     setProgress(null);
-  }, []);
+    if (!supplierIdProp) setAdminSupplierId("");
+  }, [supplierIdProp]);
 
   const handleOpenChange = (next: boolean) => {
     if (busy) return;
     setOpen(next);
     if (!next) reset();
+    else if (mode === "admin" && supplierIdProp) {
+      setAdminSupplierId(supplierIdProp);
+    }
   };
 
   const onDrop = useCallback((accepted: File[]) => {
@@ -130,6 +144,21 @@ export function MassUploadPhotosDialog({
       return;
     }
 
+    if (mode === "admin") {
+      if (adminVendorsLoading) {
+        toast.error("Still loading suppliers…");
+        return;
+      }
+      if (adminSuppliers.length === 0) {
+        toast.error("No supplier found. Create a supplier first.");
+        return;
+      }
+      if (!resolvedAdminSupplierId) {
+        toast.error("Select a supplier for these products.");
+        return;
+      }
+    }
+
     setBusy(true);
     setProgress({ done: 0, total: files.length, phase: "Starting…" });
 
@@ -155,23 +184,29 @@ export function MassUploadPhotosDialog({
         });
 
         let title = fallbackTitle;
-        let description: string | undefined;
+        let description: string | null | undefined = null;
         let unitPrice: number | null = null;
+
         try {
-          const suggestion = await suggestMutation.mutateAsync({
-            mediaId,
-            fallbackTitle,
-          });
+          const suggestion =
+            mode === "vendor"
+              ? await vendorSuggest.mutateAsync({ mediaId, fallbackTitle })
+              : await adminSuggest.mutateAsync({
+                  mediaId,
+                  fallbackTitle,
+                  supplierId: resolvedAdminSupplierId,
+                });
+
           title = suggestion.title || fallbackTitle;
-          description = suggestion.description?.trim()
-            ? suggestion.description.trim()
-            : undefined;
+          const desc = suggestion.description?.trim();
+          description = desc ? desc : mode === "admin" ? null : undefined;
           unitPrice =
             typeof suggestion.unitPrice === "number" &&
             Number.isFinite(suggestion.unitPrice) &&
             suggestion.unitPrice >= 0
               ? suggestion.unitPrice
               : null;
+
           if (suggestion.usedAi) {
             aiCount += 1;
           } else if (suggestion.skipReason) {
@@ -184,12 +219,24 @@ export function MassUploadPhotosDialog({
           );
         }
 
-        await createMutation.mutateAsync({
-          title,
-          description,
-          unitPrice,
-          images: [mediaId],
-        });
+        if (mode === "vendor") {
+          await vendorCreate.mutateAsync({
+            title,
+            description: description || undefined,
+            unitPrice,
+            images: [mediaId],
+          });
+        } else {
+          await adminCreate.mutateAsync({
+            title,
+            supplier: resolvedAdminSupplierId,
+            description,
+            unitPrice,
+            images: [mediaId],
+            validatedOn: "",
+          });
+        }
+
         ok += 1;
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "Failed";
@@ -198,14 +245,23 @@ export function MassUploadPhotosDialog({
       setProgress({ done: i + 1, total: files.length, phase: "…" });
     }
 
-    await utils.products.getByVendor.invalidate();
+    if (mode === "vendor") {
+      await utils.products.getByVendor.invalidate();
+    } else {
+      await utils.admin.products.list.invalidate();
+    }
+
     setBusy(false);
+
+    const supplierLabel = resolvedCompanyName ?? "supplier";
 
     if (ok > 0 && errors.length === 0) {
       toast.success(
         `Created ${ok} product(s)` +
           (aiCount > 0 ? ` · AI filled ${aiCount} listing(s)` : "") +
-          (companyName ? ` for ${companyName}` : ""),
+          (mode === "vendor" || resolvedCompanyName
+            ? ` for ${supplierLabel}`
+            : ""),
       );
       handleOpenChange(false);
       return;
@@ -220,6 +276,21 @@ export function MassUploadPhotosDialog({
     toast.error(errors[0] || "Upload failed");
   };
 
+  const openAiHint =
+    mode === "vendor"
+      ? "Set OPENAI_API_KEY in Account Settings for AI suggestions."
+      : "Requires OPENAI_API_KEY on this supplier (Edit Supplier) — not the server .env key.";
+
+  const showAdminSupplierPicker =
+    mode === "admin" && !supplierIdProp && adminSuppliers.length > 1;
+
+  const uploadDisabled =
+    files.length === 0 ||
+    busy ||
+    (mode === "admin" &&
+      (adminVendorsLoading ||
+        (adminSuppliers.length > 0 && !resolvedAdminSupplierId)));
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -232,15 +303,41 @@ export function MassUploadPhotosDialog({
         <DialogHeader>
           <DialogTitle>Mass upload photos</DialogTitle>
           <DialogDescription>
-            Each photo is lightly enhanced, uploaded, then OpenAI suggests a
-            title, description, and wholesale unit price. Products are added to
-            your catalog
-            {companyName ? ` (${companyName})` : ""}. Set OPENAI_API_KEY in
-            Account Settings for AI suggestions.
+            Each photo is lightly enhanced (when possible), uploaded via Vercel
+            Blob, then OpenAI suggests a title, description, and wholesale unit
+            price. Products are added
+            {resolvedCompanyName
+              ? ` for ${resolvedCompanyName}`
+              : mode === "vendor"
+                ? " to your catalog"
+                : " to the selected supplier"}
+            . {openAiHint}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {showAdminSupplierPicker && (
+            <div className="space-y-2">
+              <Label htmlFor="mass-upload-supplier">Supplier</Label>
+              <Select
+                value={adminSupplierId || undefined}
+                onValueChange={setAdminSupplierId}
+                disabled={busy}
+              >
+                <SelectTrigger id="mass-upload-supplier">
+                  <SelectValue placeholder="Select supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {adminSuppliers.map((v) => (
+                    <SelectItem key={v.id} value={String(v.id)}>
+                      {v.companyName || v.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div
             {...getRootProps()}
             className={cn(
@@ -259,7 +356,7 @@ export function MassUploadPhotosDialog({
                 : "Drag & drop photos here, or click to select"}
             </p>
             <p className="mt-1 text-xs text-gray-500">
-              JPEG, PNG, or WebP · enhance + AI title/description
+              JPEG, PNG, or WebP · up to 10MB each · enhance + AI when available
             </p>
           </div>
 
@@ -314,7 +411,7 @@ export function MassUploadPhotosDialog({
           <Button
             type="button"
             onClick={() => void handleUpload()}
-            disabled={files.length === 0 || busy}
+            disabled={uploadDisabled}
           >
             {busy ? (
               <>

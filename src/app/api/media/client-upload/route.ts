@@ -5,7 +5,7 @@ import config from '@payload-config';
 
 export const runtime = 'nodejs';
 
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /**
  * Token handoff for `@vercel/blob/client` direct uploads (bypasses the 4.5MB function body limit).

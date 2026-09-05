@@ -2,10 +2,10 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { upload } from '@vercel/blob/client';
 import { X, Upload } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
+import { uploadMediaFile } from '@/lib/upload-media-file';
 
 interface ImageUploadProps {
   value?: string[];
@@ -15,48 +15,7 @@ interface ImageUploadProps {
   acceptedTypes?: string[];
 }
 
-const DEFAULT_MAX_SIZE = 4 * 1024 * 1024;
-
-async function registerBlobMedia(input: {
-  url: string;
-  filename?: string;
-  mimeType: string;
-  size: number;
-  alt: string;
-}): Promise<string> {
-  const response = await fetch('/api/media/create-from-url', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(input),
-  });
-
-  let payloadUnknown: unknown;
-  try {
-    payloadUnknown = await response.json();
-  } catch {
-    payloadUnknown = null;
-  }
-
-  if (!response.ok) {
-    const errMsg =
-      payloadUnknown &&
-      typeof payloadUnknown === 'object' &&
-      'error' in payloadUnknown &&
-      typeof (payloadUnknown as { error: unknown }).error === 'string' ?
-        (payloadUnknown as { error: string }).error
-      : `Upload failed (${response.status})`;
-    throw new Error(errMsg);
-  }
-
-  const data = payloadUnknown as { doc?: { id?: unknown } } | null;
-  const rawId = data?.doc?.id;
-  const newId = rawId !== undefined && rawId !== null ? String(rawId) : '';
-  if (!newId) {
-    throw new Error('Unexpected response from upload');
-  }
-  return newId;
-}
+const DEFAULT_MAX_SIZE = 10 * 1024 * 1024;
 
 export function ImageUpload({
   value = [],
@@ -69,58 +28,7 @@ export function ImageUpload({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const uploadFile = useCallback(async (file: File): Promise<string> => {
-    try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/media/client-upload',
-      });
-
-      return registerBlobMedia({
-        url: blob.url,
-        filename: blob.pathname,
-        mimeType: file.type,
-        size: file.size,
-        alt: file.name,
-      });
-    } catch (directError) {
-      if (file.size > DEFAULT_MAX_SIZE) {
-        throw directError instanceof Error ?
-            directError
-          : new Error('Direct upload failed');
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await fetch('/api/media', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-
-      let payloadUnknown: unknown;
-      try {
-        payloadUnknown = await response.json();
-      } catch {
-        payloadUnknown = null;
-      }
-
-      if (!response.ok) {
-        const errMsg =
-          payloadUnknown &&
-          typeof payloadUnknown === 'object' &&
-          'error' in payloadUnknown &&
-          typeof (payloadUnknown as { error: unknown }).error === 'string' ?
-            (payloadUnknown as { error: string }).error
-          : `Upload failed (${response.status})`;
-        throw new Error(errMsg);
-      }
-
-      const data = payloadUnknown as { doc?: { id?: unknown } } | null;
-      const rawId = data?.doc?.id;
-      const newId = rawId !== undefined && rawId !== null ? String(rawId) : '';
-      if (!newId) throw new Error('Unexpected response from upload');
-      return newId;
-    }
+    return uploadMediaFile(file, false);
   }, []);
 
   const onDrop = useCallback(

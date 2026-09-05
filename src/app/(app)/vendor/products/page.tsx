@@ -24,7 +24,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { useDebounce } from '@/hooks/use-debounce';
 import { toast } from 'sonner';
-import { MassUploadPhotosDialog } from './components/MassUploadPhotosDialog';
+import { MassUploadPhotosDialog } from '@/components/products/MassUploadPhotosDialog';
 
 export default function VendorProductsPage() {
   const { user } = useAuth();
@@ -136,7 +136,10 @@ export default function VendorProductsPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <MassUploadPhotosDialog companyName={vendor.companyName} />
+          <MassUploadPhotosDialog
+            mode="vendor"
+            companyName={vendor.companyName}
+          />
           <Link href="/vendor/products/import">
             <Button variant="outline">
               <Upload className="w-4 h-4 mr-2" />
