@@ -1067,6 +1067,8 @@ export const adminRouter = createTRPCRouter({
           fallbackTitle: z.string().min(1).optional(),
           /** Required: load OPENAI_API_KEY from this supplier record. */
           supplierId: z.string().min(1),
+          /** Optional batch context included in the OpenAI prompt (e.g. "wholesale dresses"). */
+          prompt: z.string().max(2000).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -1137,7 +1139,11 @@ export const adminRouter = createTRPCRouter({
           const copy = await suggestProductCopyFromImageUrl(
             imageUrl,
             fallback,
-            { apiKey: supplierKey, allowEnvFallback: false },
+            {
+              apiKey: supplierKey,
+              allowEnvFallback: false,
+              userPrompt: input.prompt,
+            },
           );
           return {
             title: copy.title,

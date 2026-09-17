@@ -29,6 +29,7 @@ import {
 import { trpc } from '@/trpc/client';
 import { checkIfAdmin } from '@/lib/auth/admin-check';
 import { ProfileDropdown } from './ProfileDropdown';
+import { SiteLogo } from '@/components/SiteLogo';
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -115,11 +116,9 @@ export function Navbar() {
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+      <div className="container mx-auto flex h-24 items-center justify-between px-4">
         {/* Logo/Brand */}
-        <Link href={homeHref} className="flex items-center space-x-2">
-          <span className="text-xl font-bold">b2bVastra</span>
-        </Link>
+        <SiteLogo href={homeHref} priority />
 
         {/* Navigation Links - Center */}
         <div className="hidden md:flex items-center space-x-6">

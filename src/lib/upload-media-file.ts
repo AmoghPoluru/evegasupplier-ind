@@ -1,4 +1,5 @@
 import { upload } from '@vercel/blob/client';
+import { isBlobTokenError } from '@/lib/blob-setup-message';
 
 /** Server POST /api/media body limit (enhance path). */
 const SERVER_MAX_BYTES = 4 * 1024 * 1024;
@@ -24,7 +25,7 @@ async function parseMediaUploadResponse(response: Response): Promise<string> {
 
   const data = payloadUnknown as { doc?: { id?: unknown } } | null;
   const rawId = data?.doc?.id;
-  const newId = rawId !== undefined && rawId !== null ? String(rawId) : '';
+  const newId = rawId !== undefined && rawId !== null ? String(rawId) : "";
   if (!newId) {
     throw new Error('Upload succeeded but no media id returned');
   }
@@ -77,32 +78,35 @@ async function uploadViaClientBlob(file: File): Promise<string> {
 
 /**
  * Upload a product image and return Payload media id.
- * Uses Vercel client blob upload for large files (recommended on Vercel).
- * Optional server-side enhance for files within the 4MB POST limit.
+ * Prefers Vercel client blob upload (works for large files on Vercel).
+ * Falls back to server POST only for small files (e.g. local dev).
  */
 export async function uploadMediaFile(
   file: File,
   enhance = false,
 ): Promise<string> {
-  if (enhance && file.size <= SERVER_MAX_BYTES) {
-    try {
-      return await uploadViaServer(file, true);
-    } catch (serverErr) {
-      console.warn(
-        'Server enhance upload failed; trying direct blob upload',
-        serverErr,
-      );
-    }
-  }
+  let clientError: Error | null = null;
 
   try {
     return await uploadViaClientBlob(file);
-  } catch (clientErr) {
-    if (file.size <= SERVER_MAX_BYTES) {
-      return uploadViaServer(file, false);
+  } catch (err: unknown) {
+    clientError = err instanceof Error ? err : new Error('Direct blob upload failed');
+  }
+
+  if (file.size > SERVER_MAX_BYTES) {
+    throw clientError;
+  }
+
+  try {
+    return await uploadViaServer(file, enhance);
+  } catch (serverErr: unknown) {
+    const serverMsg =
+      serverErr instanceof Error ? serverErr.message : 'Upload failed';
+
+    if (clientError && !isBlobTokenError(clientError.message)) {
+      throw clientError;
     }
-    throw clientErr instanceof Error
-      ? clientErr
-      : new Error('Direct blob upload failed');
+
+    throw serverErr instanceof Error ? serverErr : new Error(serverMsg);
   }
 }

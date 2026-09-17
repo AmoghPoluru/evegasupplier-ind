@@ -81,6 +81,8 @@ export async function suggestProductCopyFromImageUrl(
     apiKey?: string | null;
     /** Default false when apiKey is supplied; set true only for platform-wide fallback. */
     allowEnvFallback?: boolean;
+    /** Seller-provided context for this batch (e.g. product category or listing style). */
+    userPrompt?: string | null;
   },
 ): Promise<ProductCopyFromImage> {
   const allowEnvFallback = options?.allowEnvFallback ?? false;
@@ -95,6 +97,17 @@ export async function suggestProductCopyFromImageUrl(
 
   const model =
     process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o-mini';
+
+  const userContext =
+    typeof options?.userPrompt === 'string' ? options.userPrompt.trim() : '';
+  const userTextParts = [
+    `Suggest a product title, description, and wholesale unitPrice (USD) for this photo. Fallback title if unclear: ${fallbackTitle}`,
+  ];
+  if (userContext) {
+    userTextParts.push(
+      `Seller context for this batch (apply to titles, descriptions, and price estimates): ${userContext}`,
+    );
+  }
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -118,7 +131,7 @@ export async function suggestProductCopyFromImageUrl(
           content: [
             {
               type: 'text',
-              text: `Suggest a product title, description, and wholesale unitPrice (USD) for this photo. Fallback title if unclear: ${fallbackTitle}`,
+              text: userTextParts.join('\n\n'),
             },
             {
               type: 'image_url',

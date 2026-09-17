@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { Home, LogOut, User, Settings } from 'lucide-react';
+import { SiteLogo } from '@/components/SiteLogo';
 import { trpc } from '@/trpc/client';
 
 export function VendorHeader() {
@@ -41,9 +42,13 @@ export function VendorHeader() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-gray-800 text-white border-b border-gray-700 z-50">
+    <header className="fixed top-0 left-0 right-0 h-24 bg-gray-800 text-white border-b border-gray-700 z-50">
       <div className="flex items-center justify-between h-full px-6">
         <div className="flex items-center gap-4">
+          <SiteLogo
+            href="/vendor/dashboard"
+            imageClassName="rounded-sm bg-[#faf6ef]"
+          />
           <h1 className="text-xl font-semibold">
             {(vendor?.companyName?.trim() || 'Vendor Dashboard')}
           </h1>

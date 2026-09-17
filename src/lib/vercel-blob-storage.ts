@@ -4,6 +4,7 @@
 
 import { put, head, del } from '@vercel/blob';
 import { blobReadWriteToken } from '@/lib/blob-token';
+import { BLOB_TOKEN_SETUP_MESSAGE } from '@/lib/blob-setup-message';
 
 export interface BlobUploadResult {
   url: string;
@@ -20,10 +21,7 @@ export async function uploadToBlob(
 ): Promise<BlobUploadResult> {
   const token = blobReadWriteToken();
   if (!token) {
-    throw new Error(
-      'BLOB_READ_WRITE_TOKEN is required. ' +
-        'Get it from: Vercel Dashboard → Storage → Blob → Create Token',
-    );
+    throw new Error(BLOB_TOKEN_SETUP_MESSAGE);
   }
 
   try {
@@ -79,10 +77,7 @@ export async function checkBlobExists(url: string): Promise<boolean> {
 export async function deleteFromBlob(url: string): Promise<void> {
   const token = blobReadWriteToken();
   if (!token) {
-    throw new Error(
-      'BLOB_READ_WRITE_TOKEN is required. ' +
-        'Get it from: Vercel Dashboard → Storage → Blob → Create Token',
-    );
+    throw new Error(BLOB_TOKEN_SETUP_MESSAGE);
   }
 
   try {

@@ -14,8 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'EvegaSupply - B2B Supplier Marketplace',
-  description: 'B2B supplier marketplace platform',
+  title: 'B2B Zvastra - B2B Supplier Marketplace',
+  description: 'Ethnic Fusion, Jewellery, Home — B2B supplier marketplace',
+  icons: {
+    icon: '/logo.jpg',
+    apple: '/logo.jpg',
+  },
 };
 
 function isPayloadAdminPath(pathname: string) {

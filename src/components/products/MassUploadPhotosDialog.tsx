@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { uploadMediaFile } from "@/lib/upload-media-file";
 import { trpc } from "@/trpc/client";
@@ -58,6 +59,7 @@ export function MassUploadPhotosDialog({
     phase?: string;
   } | null>(null);
   const [adminSupplierId, setAdminSupplierId] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
 
   const utils = trpc.useUtils();
 
@@ -99,6 +101,7 @@ export function MassUploadPhotosDialog({
     setFiles([]);
     setBusy(false);
     setProgress(null);
+    setAiPrompt("");
     if (!supplierIdProp) setAdminSupplierId("");
   }, [supplierIdProp]);
 
@@ -165,6 +168,7 @@ export function MassUploadPhotosDialog({
     let ok = 0;
     let aiCount = 0;
     const errors: string[] = [];
+    const batchPrompt = aiPrompt.trim() || undefined;
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -190,11 +194,16 @@ export function MassUploadPhotosDialog({
         try {
           const suggestion =
             mode === "vendor"
-              ? await vendorSuggest.mutateAsync({ mediaId, fallbackTitle })
+              ? await vendorSuggest.mutateAsync({
+                  mediaId,
+                  fallbackTitle,
+                  prompt: batchPrompt,
+                })
               : await adminSuggest.mutateAsync({
                   mediaId,
                   fallbackTitle,
                   supplierId: resolvedAdminSupplierId,
+                  prompt: batchPrompt,
                 });
 
           title = suggestion.title || fallbackTitle;
@@ -337,6 +346,23 @@ export function MassUploadPhotosDialog({
               </Select>
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="mass-upload-ai-prompt">AI context (optional)</Label>
+            <Textarea
+              id="mass-upload-ai-prompt"
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              disabled={busy}
+              rows={3}
+              placeholder="e.g. These are wholesale women's dresses — mention fabric, fit, and occasion. Or: home decor items, not apparel."
+              className="resize-y text-sm"
+            />
+            <p className="text-xs text-gray-500">
+              Applied to every photo in this batch when OpenAI suggests title,
+              description, and price.
+            </p>
+          </div>
 
           <div
             {...getRootProps()}

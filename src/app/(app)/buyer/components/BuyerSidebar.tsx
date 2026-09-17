@@ -21,7 +21,7 @@ export function BuyerSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gray-100 border-r border-gray-200 overflow-y-auto">
+    <aside className="fixed left-0 top-24 h-[calc(100vh-6rem)] w-64 bg-gray-100 border-r border-gray-200 overflow-y-auto">
       <nav className="p-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;

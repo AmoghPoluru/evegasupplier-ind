@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { SiteLogo } from '@/components/SiteLogo';
 
 export function BuyerHeader() {
   const { user, logout } = useAuth();
@@ -46,9 +47,13 @@ export function BuyerHeader() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-gray-800 text-white z-50 border-b border-gray-700">
+    <header className="fixed top-0 left-0 right-0 h-24 bg-gray-800 text-white z-50 border-b border-gray-700">
       <div className="flex items-center justify-between h-full px-6">
         <div className="flex items-center gap-4">
+          <SiteLogo
+            href="/buyer/dashboard"
+            imageClassName="rounded-sm bg-[#faf6ef]"
+          />
           <h1 className="text-lg font-semibold">Buyer Dashboard</h1>
           {buyer && (buyer as any).companyName && (
             <span className="text-sm text-gray-300">

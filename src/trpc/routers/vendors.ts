@@ -573,6 +573,8 @@ export const vendorsRouter = createTRPCRouter({
         z.object({
           mediaId: z.string().min(1),
           fallbackTitle: z.string().min(1).optional(),
+          /** Optional batch context included in the OpenAI prompt (e.g. "wholesale dresses"). */
+          prompt: z.string().max(2000).optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -650,7 +652,11 @@ export const vendorsRouter = createTRPCRouter({
           const copy = await suggestProductCopyFromImageUrl(
             imageUrl,
             fallback,
-            { apiKey: supplierKey, allowEnvFallback: false },
+            {
+              apiKey: supplierKey,
+              allowEnvFallback: false,
+              userPrompt: input.prompt,
+            },
           );
           return {
             title: copy.title,

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { SiteLogo } from '@/components/SiteLogo';
 import {
   LayoutDashboard,
   Users,
@@ -58,6 +59,11 @@ export function AdminSidebar() {
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-gray-800 bg-gray-900 text-gray-100">
       <div className="border-b border-gray-800 p-4">
+        <SiteLogo
+          href="/app-admin/dashboard"
+          className="mb-3 px-1"
+          imageClassName="rounded-sm bg-[#faf6ef]"
+        />
         <div className="flex items-center gap-2 px-2 py-1">
           <Shield className="h-5 w-5 text-emerald-400" />
           <span className="font-semibold text-white">Admin Console</span>

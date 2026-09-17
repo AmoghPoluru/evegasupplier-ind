@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { SocialLoginButton } from '@/components/auth/SocialLoginButton';
+import { SiteLogo } from '@/components/SiteLogo';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -67,6 +68,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
+          <div className="mb-2 flex justify-center">
+            <SiteLogo href="/" imageClassName="h-28" priority />
+          </div>
           <CardTitle className="text-2xl font-bold">Login</CardTitle>
           <CardDescription>
             Enter your email and password to access your account

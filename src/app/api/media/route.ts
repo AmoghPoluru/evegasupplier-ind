@@ -9,6 +9,8 @@ import {
   enhanceProductImageBuffer,
   wantsImageEnhance,
 } from '@/lib/enhance-product-image';
+import { blobReadWriteToken } from '@/lib/blob-token';
+import { BLOB_TOKEN_SETUP_MESSAGE } from '@/lib/blob-setup-message';
 
 export const maxDuration = 120;
 export const runtime = 'nodejs';
@@ -132,6 +134,10 @@ export async function POST(req: NextRequest) {
 
     if (!session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!blobReadWriteToken()) {
+      return NextResponse.json({ error: BLOB_TOKEN_SETUP_MESSAGE }, { status: 503 });
     }
 
     const formData = await req.formData();
